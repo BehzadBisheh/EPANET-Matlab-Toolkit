@@ -4,10 +4,10 @@ classdef epanet <handle
     %
     %
     %   How to run: 
-    %   d=epanet('Net1_Rossman2000.inp');
+    %   d=epanet('Net1.inp');
     %   
     %   To select a different DLL version:  
-    %   d=epanet('Net1_Rossman2000.inp','epanet2');
+    %   d=epanet('Net1.inp','epanet2');
     %
     %   EPANET is software that models water distribution piping systems
     %   developed by the US EPA and provided under a public domain licence.
@@ -230,7 +230,7 @@ classdef epanet <handle
         MSXSpeciesATOL;              % Absolute tolerance used to determine when two concentration levels of a species are the same
         MSXSpeciesIndex;             % Index name of species
         MSXSpeciesNameID;            % ID name of species
-        MSXSpeciesRTOL;              % Relative accuracy level on a species concentration used to adjust time steps in the RK5 and ROS2 integration methods
+        MSXSpeciesRTOL;              % Relative accuracy level on a species concentration used to adjust time steps in the RK5 and ROS2 integration methods
         MSXSpeciesType;              % Type of all species, bulk or wall
         MSXSpeciesUnits;             % Species mass units
         MSXEquationsTanks;           % Species dynamics in tanks
