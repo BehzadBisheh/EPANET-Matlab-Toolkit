@@ -315,6 +315,11 @@ values(2)=0;
 d.setNodeDemandPatternIndex(values)
 d.getNodePatternIndex
 
+values = d.getNodeDemandPatternIndex
+values{1}(1)=2;
+d.setNodeDemandPatternIndex(values)
+d.getNodePatternIndex
+
 values = d.getNodeEmitterCoeff
 values(2)=0.5;
 d.setNodeEmitterCoeff(values)
