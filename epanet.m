@@ -2159,11 +2159,22 @@ classdef epanet <handle
                 end
                 return;
             end
-            if iscell(value)
-                value=value{1};
-            end
-            for i=1:length(value)
-                [obj.Errcode] = ENsetnodevalue(i, 2, value(i),obj.LibEPANET);
+
+            chckfunctions=libfunctions(obj.LibEPANET);
+            if sum(strcmp(chckfunctions,'ENsetdemandpattern')) && iscell(value)
+                NodeNumDemandC=obj.getNodeDemandCategoriesNumber;
+                for i=1:obj.getNodeJunctionCount
+                    for u=1:NodeNumDemandC(i)
+                        [obj.Errcode] = ENsetdemandpattern(i, u, value{u}(i),obj.LibEPANET);
+                    end
+                end
+            else
+                if iscell(value)
+                    value=value{1};
+                end
+                for i=1:length(value)
+                    [obj.Errcode] = ENsetnodevalue(i, 2, value(i),obj.LibEPANET);
+                end
             end
         end
         function setNodeEmitterCoeff(obj, value, varargin)
@@ -7603,6 +7614,13 @@ end
 function [Errcode] = ENsetbasedemand(index, demandIdx, value, LibEPANET)
 % New version dev2.1
 [Errcode]=calllib(LibEPANET,'ENsetbasedemand',index, demandIdx, value);
+if Errcode
+    ENgeterror(Errcode,LibEPANET);
+end
+end
+function [Errcode] = ENsetdemandpattern(index, demandIdx, patInd, LibEPANET)
+% New version 
+[Errcode]=calllib(LibEPANET,'ENsetdemandpattern',index, demandIdx, patInd);
 if Errcode
     ENgeterror(Errcode,LibEPANET);
 end
