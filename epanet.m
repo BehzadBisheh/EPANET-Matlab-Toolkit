@@ -2168,6 +2168,7 @@ classdef epanet <handle
                         [obj.Errcode] = ENsetdemandpattern(i, u, value{u}(i),obj.LibEPANET);
                     end
                 end
+                warning('Can changes the demand pattern index based on the number of categories.');
             else
                 if iscell(value)
                     value=value{1};
