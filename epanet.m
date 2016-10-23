@@ -66,6 +66,7 @@ classdef epanet <handle
         Iterations;                  % Iterations to reach solution
         LibEPANET;                   % EPANET library dll
         LibEPANETpath;               % EPANET library dll path
+        libFunctions;                % EPANET functions in dll
         LinkBulkReactionCoeff;       % Bulk reaction coefficient of each link
         LinkCount;                   % Number of links
         LinkDiameter;                % Diameter of each link
@@ -558,10 +559,12 @@ classdef epanet <handle
             obj.QualityCode = obj.getQualityCode;
             obj.QualityTraceNodeIndex = obj.getQualityTraceNodeIndex;
 %             obj.QualityType = obj.getQualityType;
-            n = obj.getQualityInfo;
-            obj.QualityChemUnits = n.QualityChemUnits;
-            obj.QualityChemName= n.QualityChemName;
-            
+            obj.libFunctions = libfunctions(obj.LibEPANET);
+            if sum(strcmp(obj.libFunctions,'ENgetqualinfo'))
+                n = obj.getQualityInfo;
+                obj.QualityChemUnits = n.QualityChemUnits;
+                obj.QualityChemName= n.QualityChemName;
+            end
             %Get time parameters
             obj.TimeSimulationDuration = obj.getTimeSimulationDuration;
             obj.TimeHydraulicStep = obj.getTimeHydraulicStep;
@@ -1108,8 +1111,7 @@ classdef epanet <handle
         end
         function value = getNodeBaseDemands(obj, varargin)
             %New version dev2.1
-            chckfunctions=libfunctions(obj.LibEPANET);
-            if sum(strcmp(chckfunctions,'ENgetbasedemand'))
+            if sum(strcmp(obj.libFunctions,'ENgetbasedemand'))
                 numdemands = obj.getNodeDemandCategoriesNumber;
                 val=zeros(max(numdemands),obj.getNodeCount);
                 for i=obj.getNodeIndex
@@ -1824,7 +1826,7 @@ classdef epanet <handle
             value = unique(value)';
         end
         function value = getLibFunctions(obj)
-            value = libfunctions(obj.LibEPANET)'';
+            value = obj.libFunctions;
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         function value = getVersion(obj)
@@ -7634,6 +7636,13 @@ if Errcode
 end
 end
 function [obj] = MSXMatlabSetup(obj,msxname,varargin)
+pwdepanet=fileparts(which('epanet.m'));
+if strcmp(computer('arch'),'win64')
+    obj.MSXLibEPANETPath = [pwdepanet,'\64bit\'];
+elseif strcmp(computer('arch'),'win32')
+    obj.MSXLibEPANETPath = [pwdepanet,'\32bit\'];
+end
+            
 if ~isempty(varargin)
     if varargin{1}{1}~=1
         if nargin==3 
@@ -7644,8 +7653,6 @@ if ~isempty(varargin)
             end
         end
     end
-else
-    obj.MSXLibEPANETPath=obj.LibEPANETpath;
 end
 obj.MSXLibEPANET='epanetmsx'; % Get DLL LibEPANET (e.g. epanet20012x86 for 32-bit)
 if ~libisloaded(obj.MSXLibEPANET)
