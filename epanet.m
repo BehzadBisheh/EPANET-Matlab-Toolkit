@@ -438,8 +438,8 @@ classdef epanet <handle
                 if ~isempty(find(obj.InputFile==' '))
                     warning(['File "', obj.InputFile, '" is not a valid']);return;
                 end
-                obj.LibEPANET=varargin{2}; % Get DLL LibEPANET (e.g. epanet20012x86 for 32-bit)
-                obj.LibEPANETpath = [pwd,'\'];
+                [pwdDLL,obj.LibEPANET] = fileparts(varargin{2}); % Get DLL LibEPANET (e.g. epanet20012x86 for 32-bit)
+                obj.LibEPANETpath = [pwdDLL,'/'];
                 warning off;
                 try  loadlibrary([obj.LibEPANETpath,obj.LibEPANET],[obj.LibEPANETpath,obj.LibEPANET,'.h']); 
                 catch e
