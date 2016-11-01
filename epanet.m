@@ -5106,8 +5106,10 @@ classdef epanet <handle
                 [Errcode]=addNewControl(obj,x,status,y_t_c,param,z);
             elseif nargin==5
                 [Errcode]=addNewControl(obj,x,status,y_t_c,param);
-            else
+            elseif nargin==4
                 [Errcode]=addNewControl(obj,x,status,y_t_c);
+            else
+                [Errcode]=addNewControl(obj,x); % add many controls
             end
         end
         function [Errcode]=removeBinNodeID(obj,NodeID)
@@ -10090,11 +10092,11 @@ end
 function [Errcode]=addNewControl(obj,x,status,y_t_c,param,z,varargin)
 % syntax
 if (nargin==6)
-    syntax = sprintf('LINK     %s     %s     IF     NODE     %s     %s     %d',x,status,y_t_c,param,z);
+    syntax = ['LINK ',x,' ',status,' IF NODE ',y_t_c,' ',param,' ',num2str(z)];
 elseif (nargin==5)
-    syntax = sprintf('LINK     %s     %s     AT     CLOCKTIME     %s     %s',x,status,y_t_c,param);
+    syntax = ['LINK ',x,' ',status,' AT CLOCKTIME ',y_t_c,' ',param];
 elseif (nargin==4)
-    syntax = sprintf('LINK     %s     %s     AT     TIME     %s',x,status,y_t_c);
+    syntax = ['LINK ',x,' ',status,' AT TIME ',y_t_c];
 end
 if (nargin==6)
     % Check if id new already exists
@@ -10114,22 +10116,26 @@ if (nargin==6)
         return;
     end
 end
-% Check if id new already exists
-links = obj.getBinLinksInfo; Errcode=0;
-if length(char(links.BinLinkNameID))==0
-    s = sprintf('There is no such object in the network.');
-    warning(s);Errcode=-1;
-    return;
-end
-i=1;
-while i<length(char(links.BinLinkNameID))+1
-    exists(i) = strcmp(x,char(links.BinLinkNameID(i)));
-    i=i+1;
-end
-if (sum(exists)~=1)
-    s = sprintf('There is no such object in the network.');
-    warning(s);Errcode=-1;
-    return;
+if (nargin==2)
+   controls = x; 
+else
+    % Check if id new already exists
+    links = obj.getBinLinksInfo; Errcode=0;
+    if length(char(links.BinLinkNameID))==0
+        s = sprintf('There is no such object in the network.');
+        warning(s);Errcode=-1;
+        return;
+    end
+    i=1;
+    while i<length(char(links.BinLinkNameID))+1
+        exists(i) = strcmp(x,char(links.BinLinkNameID(i)));
+        i=i+1;
+    end
+    if (sum(exists)~=1)
+        s = sprintf('There is no such object in the network.');
+        warning(s);Errcode=-1;
+        return;
+    end
 end
 type_n='[CONTROLS]';
 [~,info] = obj.readInpFile;
@@ -10152,7 +10158,14 @@ for t = 1:length(info)
             ch1 = strcmp(check_brackets,'[');
             ch2 = strcmp(check_brackets,']');
             if (ch1(1)==1 && ch2(2)==1 && (s==1) && noo==0)
-                fprintf(fid2, '%s',syntax);
+                if (nargin==2)
+                    for i=1:length(controls)
+                        fprintf(fid2, controls(i,:));
+                        fprintf(fid2,'\r\n');
+                    end
+                else
+                    fprintf(fid2, '%s',syntax);
+                end
                 fprintf(fid2,'\r\n');
                 fprintf(fid2,'\r\n');
                 fprintf(fid2,'%s',a{u});
