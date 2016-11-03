@@ -3982,86 +3982,94 @@ classdef epanet <handle
                     d=d+1;
                     % Times
                 elseif sect==16
-                    if strcmp(upper(atline{1}),'DURATION')
-                        r=atline{2};
-                    elseif length(atline)>2
-                        r=atline{3};
+                    r=atline{2};
+                    if length(atline)>2 
+                        if ~strcmp(upper(atline{end}),'HOURS')
+                            r=atline{3};
+                        end
                     end
+                    tmpt=[0 0];
                     if sum(r==':')
-                        hrs=str2num(r(1:find(r==':')-1));
-                        min=str2num(r((find(r==':')+1):end-find(r==':')-1));
-                        if isempty(min), min=0; end
-                        if isempty(hrs), hrs=0; end
-                        secnd=hrs*3600+min*60;
-                    elseif sum(r=='.')
-                        min=str2num(r(1:find(r=='.')-1));
-                        secnd1=str2num(r((find(r=='.')+1):end));
-                        if isempty(min), min=0; end
-                        if isempty(secnd1), secnd1=0; end
-                        secnd=min*60+secnd1;
-                    elseif ~sum(r==':') && ~sum(r=='.')
-                        secnd=str2num(r)*3600;
+                        r=regexp(r,':','split');
+                        tmpt(1)=str2num(r{1});
+                        tmpt(2)=str2num(r{2});
+                        secnd=tmpt(1)*3600+tmpt(2)*60;
+                        if length(r)>2
+                            secnd=secnd+str2num(r{3}); 
+                        end
+                    else
+                        tmp=3600;
+                        if strcmp(upper(atline{end}),'MIN')
+                            tmp=60;
+                        end
+                        secnd=single(str2num(r)*tmp);
                     end
-                    if strcmp(upper(atline{1}),'DURATION')
-                        obj.BinTimeSimulationDuration=secnd;
-                    elseif strcmp(upper(atline{1}),'HYDRAULIC')
-                        obj.BinTimeHydraulicStep=secnd;
-                    elseif strcmp(upper(atline{1}),'QUALITY')
-                        obj.BinTimeQualityStep=secnd;
-                    elseif strcmp(upper(atline{1}),'PATTERN') && strcmp(upper(atline{2}),'TIMESTEP')
-                        obj.BinTimePatternStep=secnd;
-                    elseif strcmp(upper(atline{1}),'PATTERN') && strcmp(upper(atline{2}),'START')
-                        obj.BinTimePatternStart=secnd;
-                    elseif strcmp(upper(atline{1}),'REPORT') && strcmp(upper(atline{2}),'TIMESTEP')
-                        obj.BinTimeReportingStep=secnd;
-                    elseif strcmp(upper(atline{1}),'REPORT') && strcmp(upper(atline{2}),'START')
-                        obj.BinTimeReportingStart=secnd;
-                    elseif strcmp(upper(atline{1}),'STATISTIC') 
-                        obj.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
-                        obj.BinTimeStatistics=obj.TYPESTATS{obj.BinTimeStatisticsIndex+1};
+                    switch upper(atline{1})
+                        case 'DURATION'
+                            obj.BinTimeSimulationDuration=secnd;
+                        case 'HYDRAULIC'
+                            obj.BinTimeHydraulicStep=secnd;
+                        case 'QUALITY'
+                            obj.BinTimeQualityStep=secnd;
+                        case 'PATTERN'
+                            if strcmp(upper(atline{2}),'TIMESTEP')
+                                obj.BinTimePatternStep=secnd;
+                            elseif strcmp(upper(atline{2}),'START')
+                                obj.BinTimePatternStart=secnd;
+                            end
+                        case 'REPORT'
+                            if strcmp(upper(atline{2}),'TIMESTEP')
+                                obj.BinTimeReportingStep=secnd;
+                            elseif strcmp(upper(atline{2}),'START')
+                                obj.BinTimeReportingStart=secnd;
+                            end
+                        case 'STATISTIC' 
+                            obj.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
+                            obj.BinTimeStatistics=obj.TYPESTATS{obj.BinTimeStatisticsIndex+1};
                     end                  
                     % Options
                 elseif sect==17
-                    if strcmp(upper(atline{1}),'UNITS')
-                        obj.BinLinkFlowUnits=atline{2};
-                    elseif strcmp(upper(atline{1}),'HEADLOSS')
-                        obj.BinOptionsHeadloss=atline{2};
-                    elseif strcmp(upper(atline{1}),'PRESSURE')
-                        obj.BinNodePressureUnits=atline{2};
-                    elseif strcmp(upper(atline{1}),'SPECIFIC')
-                        obj.BinOptionsSpecificGravity=str2num(atline{3});
-                    elseif strcmp(upper(atline{1}),'VISCOSITY')
-                        obj.BinOptionsViscosity=str2num(atline{2});
-                    elseif strcmp(upper(atline{1}),'TRIALS')
-                        obj.BinOptionsMaxTrials=str2num(atline{2});
-                    elseif strcmp(upper(atline{1}),'ACCURACY')
-                        obj.BinOptionsAccuracyValue=single(str2num(atline{2}));
-                    elseif strcmp(upper(atline{1}),'UNBALANCED')
-                        obj.BinOptionsUnbalanced= atline(2:end);
-                    elseif strcmp(upper(atline{1}),'PATTERN')
-                        obj.BinOptionsPattern=str2num(atline{2});
-                    elseif strcmp(upper(atline{1}),'DEMAND')
-                        obj.BinOptionsPatternDemandMultiplier=str2num(atline{3});
-                    elseif strcmp(upper(atline{1}),'EMITTER')
-                        obj.BinOptionsEmitterExponent=str2num(atline{3});
-                    elseif strcmp(upper(atline{1}),'QUALITY')
-                        obj.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
-                        obj.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
-                        if isempty(obj.BinQualityCode)
-                            obj.BinQualityCode=1;
-                        end
-                        if obj.BinQualityCode==3
-                            obj.BinQualityTraceNodeIndex=find(strcmpi(obj.BinNodeNameID,atline{3}));
-                            obj.BinQualityTraceNodeID=atline{3};
-                        else
-                            if length(atline)>2
-                                obj.BinQualityUnits=atline{3};
+                    switch upper(atline{1})
+                        case 'UNITS'
+                            obj.BinLinkFlowUnits=atline{2};
+                        case 'HEADLOSS'
+                            obj.BinOptionsHeadloss=atline{2};
+                        case 'PRESSURE'
+                            obj.BinNodePressureUnits=atline{2};
+                        case 'SPECIFIC'
+                            obj.BinOptionsSpecificGravity=str2num(atline{3});
+                        case 'VISCOSITY'
+                            obj.BinOptionsViscosity=str2num(atline{2});
+                        case 'TRIALS'
+                            obj.BinOptionsMaxTrials=str2num(atline{2});
+                        case 'ACCURACY'
+                            obj.BinOptionsAccuracyValue=single(str2num(atline{2}));
+                        case 'UNBALANCED'
+                            obj.BinOptionsUnbalanced= atline(2:end);
+                        case 'PATTERN'
+                            obj.BinOptionsPattern=str2num(atline{2});
+                        case 'DEMAND'
+                            obj.BinOptionsPatternDemandMultiplier=str2num(atline{3});
+                        case 'EMITTER'
+                            obj.BinOptionsEmitterExponent=str2num(atline{3});
+                        case 'QUALITY'
+                            obj.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
+                            obj.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
+                            if isempty(obj.BinQualityCode)
+                                obj.BinQualityCode=1;
                             end
-                        end
-                    elseif strcmp(upper(atline{1}),'DIFFUSIVITY')
-                        obj.BinOptionsDiffusivity=str2num(atline{2});% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
-                    elseif strcmp(upper(atline{1}),'TOLERANCE')
-                        obj.BinOptionsQualityTolerance=single(str2num(atline{2}));% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
+                            if length(atline)>2
+                                if obj.BinQualityCode==3
+                                    obj.BinQualityTraceNodeIndex=obj.getBinNodeIndex(atline{3});
+                                    obj.BinQualityTraceNodeID=atline{3};
+                                else
+                                    obj.BinQualityUnits=atline{3};
+                                end
+                            end
+                        case 'DIFFUSIVITY' 
+                            obj.BinOptionsDiffusivity=str2num(atline{2});  
+                        case 'TOLERANCE' 
+                            obj.BinOptionsQualityTolerance=single(str2num(atline{2})); 
                     end
                     % Coordinates
                 elseif sect==18
@@ -6907,7 +6915,6 @@ classdef epanet <handle
                         continue;
                     end
                 end
-
                 if sect==0
                     continue;
                     % Options
@@ -6924,46 +6931,47 @@ classdef epanet <handle
                             atline{uu}=a{tt}; uu=uu+1;
                         end
                     end
-                    if strcmp(upper(atline{1}),'UNITS')
-                        value.BinLinkFlowUnits=atline{2};
-                    elseif strcmp(upper(atline{1}),'HEADLOSS')
-                        value.BinOptionsHeadloss=atline{2};
-                    elseif strcmp(upper(atline{1}),'PRESSURE')
-                        value.BinNodePressureUnits=atline{2};
-                    elseif strcmp(upper(atline{1}),'SPECIFIC')
-                        value.BinOptionsSpecificGravity=str2num(atline{3});
-                    elseif strcmp(upper(atline{1}),'VISCOSITY')
-                        value.BinOptionsViscosity=str2num(atline{2});
-                    elseif strcmp(upper(atline{1}),'TRIALS')
-                        value.BinOptionsMaxTrials=str2num(atline{2});
-                    elseif strcmp(upper(atline{1}),'ACCURACY')
-                        value.BinOptionsAccuracyValue=single(str2num(atline{2}));
-                    elseif strcmp(upper(atline{1}),'UNBALANCED')
-                        value.BinOptionsUnbalanced= atline(2:end);
-                    elseif strcmp(upper(atline{1}),'PATTERN')
-                        value.BinOptionsPattern=str2num(atline{2});
-                    elseif strcmp(upper(atline{1}),'DEMAND')
-                        value.BinOptionsPatternDemandMultiplier=str2num(atline{3});
-                    elseif strcmp(upper(atline{1}),'EMITTER')
-                        value.BinOptionsEmitterExponent=str2num(atline{3});
-                    elseif strcmp(upper(atline{1}),'QUALITY')
-                        value.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
-                        value.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
-                        if isempty(value.BinQualityCode)
-                            value.BinQualityCode=1;
-                        end
-                        if value.BinQualityCode==3 && length(atline)>2
-                            value.BinQualityTraceNodeIndex=getBinNodeIndex(obj, atline{3});
-                            value.BinQualityTraceNodeID=atline{3};
-                        else
-                            if length(atline)>2
-                                value.BinQualityUnits=atline{3};
+                    switch upper(atline{1})
+                        case 'UNITS'
+                            value.BinLinkFlowUnits=atline{2};
+                        case 'HEADLOSS'
+                            value.BinOptionsHeadloss=atline{2};
+                        case 'PRESSURE'
+                            value.BinNodePressureUnits=atline{2};
+                        case 'SPECIFIC'
+                            value.BinOptionsSpecificGravity=str2num(atline{3});
+                        case 'VISCOSITY'
+                            value.BinOptionsViscosity=str2num(atline{2});
+                        case 'TRIALS'
+                            value.BinOptionsMaxTrials=str2num(atline{2});
+                        case 'ACCURACY'
+                            value.BinOptionsAccuracyValue=single(str2num(atline{2}));
+                        case 'UNBALANCED'
+                            value.BinOptionsUnbalanced= atline(2:end);
+                        case 'PATTERN'
+                            value.BinOptionsPattern=str2num(atline{2});
+                        case 'DEMAND'
+                            value.BinOptionsPatternDemandMultiplier=str2num(atline{3});
+                        case 'EMITTER'
+                            value.BinOptionsEmitterExponent=str2num(atline{3});
+                        case 'QUALITY'
+                            value.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
+                            value.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
+                            if isempty(value.BinQualityCode)
+                                value.BinQualityCode=1;
                             end
-                        end
-                    elseif strcmp(upper(atline{1}),'DIFFUSIVITY')
-                        value.BinOptionsDiffusivity=str2num(atline{2});% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
-                    elseif strcmp(upper(atline{1}),'TOLERANCE')
-                        value.BinOptionsQualityTolerance=single(str2num(atline{2}));% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
+                            if length(atline)>2
+                                if value.BinQualityCode==3
+                                    value.BinQualityTraceNodeIndex=obj.getBinNodeIndex(atline{3});
+                                    value.BinQualityTraceNodeID=atline{3};
+                                else
+                                    value.BinQualityUnits=atline{3};
+                                end
+                            end
+                        case 'DIFFUSIVITY' 
+                            value.BinOptionsDiffusivity=str2num(atline{2});  
+                        case 'TOLERANCE' 
+                            value.BinOptionsQualityTolerance=single(str2num(atline{2})); 
                     end
                 end
             end
@@ -7075,55 +7083,51 @@ classdef epanet <handle
                             atline{uu}=a{tt}; uu=uu+1;
                         end
                     end
-                    if strcmp(upper(atline{1}),'DURATION')
-                        r=atline{2};
-                    elseif length(atline)>2
-                        r=atline{3};
+                    r=atline{2};
+                    if length(atline)>2 
+                        if ~strcmp(upper(atline{end}),'HOURS')
+                            r=atline{3};
+                        end
                     end
+                    tmpt=[0 0];
                     if sum(r==':')
-                        hrs=str2num(r(1:find(r==':')-1));
-                        min=str2num(r((find(r==':')+1):end-find(r==':')-1));
-                        if isempty(min), min=0; end
-                        if isempty(hrs), hrs=0; end
-                        if ~min && ~hrs
-                            g=find(r==':'); 
-                            secnd=str2num(r(g(end)+1:end)); 
-                        else
-                        secnd=hrs*3600+min*60;
+                        r=regexp(r,':','split');
+                        tmpt(1)=str2num(r{1});
+                        tmpt(2)=str2num(r{2});
+                        secnd=tmpt(1)*3600+tmpt(2)*60;
+                        if length(r)>2
+                            secnd=secnd+str2num(r{3}); 
                         end
-                    elseif sum(r=='.')
-%                         min=str2num(r(1:find(r=='.')-1));
-%                         secnd1=str2num(r((find(r=='.')+1):end));
-                        if length(atline)>2; 
-                            if strcmp(upper(atline{3}),'HOURS')
-                                secnd=str2num(r)*3600;
-                            end
+                    else
+                        tmp=3600;
+                        if strcmp(upper(atline{end}),'MIN')
+                            tmp=60;
                         end
-                        if isempty(min), min=0; end
-%                         if isempty(secnd1), secnd1=0; end
-                        min=str2num(r);
-                        secnd=single(min*60);%+secnd1;
-                    elseif ~sum(r==':') && ~sum(r=='.')
-                        secnd=single(str2num(r)*3600);
+                        secnd=single(str2num(r)*tmp);
                     end
-                    if strcmp(upper(atline{1}),'DURATION')
-                        value.BinTimeSimulationDuration=secnd;
-                    elseif strcmp(upper(atline{1}),'HYDRAULIC')
-                        value.BinTimeHydraulicStep=secnd;
-                    elseif strcmp(upper(atline{1}),'QUALITY')
-                        value.BinTimeQualityStep=secnd;
-                    elseif strcmp(upper(atline{1}),'PATTERN') && strcmp(upper(atline{2}),'TIMESTEP')
-                        value.BinTimePatternStep=secnd;
-                    elseif strcmp(upper(atline{1}),'PATTERN') && strcmp(upper(atline{2}),'START')
-                        value.BinTimePatternStart=secnd;
-                    elseif strcmp(upper(atline{1}),'REPORT') && strcmp(upper(atline{2}),'TIMESTEP')
-                        value.BinTimeReportingStep=secnd;
-                    elseif strcmp(upper(atline{1}),'REPORT') && strcmp(upper(atline{2}),'START')
-                        value.BinTimeReportingStart=secnd;
-                    elseif strcmp(upper(atline{1}),'STATISTIC') 
-                        value.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
-                        value.BinTimeStatistics=obj.TYPESTATS{value.BinTimeStatisticsIndex+1};
-                    end       
+                    switch upper(atline{1})
+                        case 'DURATION'
+                            value.BinTimeSimulationDuration=secnd;
+                        case 'HYDRAULIC'
+                            value.BinTimeHydraulicStep=secnd;
+                        case 'QUALITY'
+                            value.BinTimeQualityStep=secnd;
+                        case 'PATTERN'
+                            if strcmp(upper(atline{2}),'TIMESTEP')
+                                value.BinTimePatternStep=secnd;
+                            elseif strcmp(upper(atline{2}),'START')
+                                value.BinTimePatternStart=secnd;
+                            end
+                        case 'REPORT'
+                            if strcmp(upper(atline{2}),'TIMESTEP')
+                                value.BinTimeReportingStep=secnd;
+                            elseif strcmp(upper(atline{2}),'START')
+                                value.BinTimeReportingStart=secnd;
+                            end
+                        case 'STATISTIC' 
+                            value.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
+                            value.BinTimeStatistics=obj.TYPESTATS{value.BinTimeStatisticsIndex+1};
+                    end                            
                 end
             end
         end
@@ -10091,6 +10095,7 @@ end
 end
 function [Errcode]=addNewControl(obj,x,status,y_t_c,param,z,varargin)
 % syntax
+Errcode=0;
 if (nargin==6)
     syntax = ['LINK ',x,' ',status,' IF NODE ',y_t_c,' ',param,' ',num2str(z)];
 elseif (nargin==5)
@@ -10120,7 +10125,7 @@ if (nargin==2)
    controls = x; 
 else
     % Check if id new already exists
-    links = obj.getBinLinksInfo; Errcode=0;
+    links = obj.getBinLinksInfo; 
     if length(char(links.BinLinkNameID))==0
         s = sprintf('There is no such object in the network.');
         warning(s);Errcode=-1;
