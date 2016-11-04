@@ -3984,93 +3984,16 @@ classdef epanet <handle
                 elseif sect==16
                     r=atline{2};
                     if length(atline)>2 
-                        if ~strcmp(upper(atline{end}),'HOURS')
-                            r=atline{3};
+                        if find(~strcmp(upper(atline{end}),{'HOURS','MIN','SECONDS','MINUTES','DAYS'})==0)
+                            r=atline{end-1};
+                        else
+                            r=atline{end};
                         end
                     end
-                    tmpt=[0 0];
-                    if sum(r==':')
-                        r=regexp(r,':','split');
-                        tmpt(1)=str2num(r{1});
-                        tmpt(2)=str2num(r{2});
-                        secnd=tmpt(1)*3600+tmpt(2)*60;
-                        if length(r)>2
-                            secnd=secnd+str2num(r{3}); 
-                        end
-                    else
-                        tmp=3600;
-                        if strcmp(upper(atline{end}),'MIN')
-                            tmp=60;
-                        end
-                        secnd=single(str2num(r)*tmp);
-                    end
-                    switch upper(atline{1})
-                        case 'DURATION'
-                            obj.BinTimeSimulationDuration=secnd;
-                        case 'HYDRAULIC'
-                            obj.BinTimeHydraulicStep=secnd;
-                        case 'QUALITY'
-                            obj.BinTimeQualityStep=secnd;
-                        case 'PATTERN'
-                            if strcmp(upper(atline{2}),'TIMESTEP')
-                                obj.BinTimePatternStep=secnd;
-                            elseif strcmp(upper(atline{2}),'START')
-                                obj.BinTimePatternStart=secnd;
-                            end
-                        case 'REPORT'
-                            if strcmp(upper(atline{2}),'TIMESTEP')
-                                obj.BinTimeReportingStep=secnd;
-                            elseif strcmp(upper(atline{2}),'START')
-                                obj.BinTimeReportingStart=secnd;
-                            end
-                        case 'STATISTIC' 
-                            obj.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
-                            obj.BinTimeStatistics=obj.TYPESTATS{obj.BinTimeStatisticsIndex+1};
-                    end                  
+                    obj = getTimes(obj, r, atline, obj);                
                     % Options
                 elseif sect==17
-                    switch upper(atline{1})
-                        case 'UNITS'
-                            obj.BinLinkFlowUnits=atline{2};
-                        case 'HEADLOSS'
-                            obj.BinOptionsHeadloss=atline{2};
-                        case 'PRESSURE'
-                            obj.BinNodePressureUnits=atline{2};
-                        case 'SPECIFIC'
-                            obj.BinOptionsSpecificGravity=str2num(atline{3});
-                        case 'VISCOSITY'
-                            obj.BinOptionsViscosity=str2num(atline{2});
-                        case 'TRIALS'
-                            obj.BinOptionsMaxTrials=str2num(atline{2});
-                        case 'ACCURACY'
-                            obj.BinOptionsAccuracyValue=single(str2num(atline{2}));
-                        case 'UNBALANCED'
-                            obj.BinOptionsUnbalanced= atline(2:end);
-                        case 'PATTERN'
-                            obj.BinOptionsPattern=str2num(atline{2});
-                        case 'DEMAND'
-                            obj.BinOptionsPatternDemandMultiplier=str2num(atline{3});
-                        case 'EMITTER'
-                            obj.BinOptionsEmitterExponent=str2num(atline{3});
-                        case 'QUALITY'
-                            obj.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
-                            obj.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
-                            if isempty(obj.BinQualityCode)
-                                obj.BinQualityCode=1;
-                            end
-                            if length(atline)>2
-                                if obj.BinQualityCode==3
-                                    obj.BinQualityTraceNodeIndex=obj.getBinNodeIndex(atline{3});
-                                    obj.BinQualityTraceNodeID=atline{3};
-                                else
-                                    obj.BinQualityUnits=atline{3};
-                                end
-                            end
-                        case 'DIFFUSIVITY' 
-                            obj.BinOptionsDiffusivity=str2num(atline{2});  
-                        case 'TOLERANCE' 
-                            obj.BinOptionsQualityTolerance=single(str2num(atline{2})); 
-                    end
+                    obj = getOptionsValues(obj, obj, atline);
                     % Coordinates
                 elseif sect==18
                     A = textscan(tline,'%s %f %f');
@@ -6550,7 +6473,7 @@ classdef epanet <handle
             value.BinLinkNameID = [value.BinLinkPipeNameID value.BinLinkPumpNameID value.BinLinkValveNameID];
         end
         function value = getBinLinksInfo(obj)
-            sect=0;i=1;t=1;q=1;
+            sect=0;i=1;t=1;q=1;d=1;value=[];
             % Open epanet input file
             [~,info] = obj.readInpFile;
             for h=1:length(info)
@@ -6561,157 +6484,9 @@ classdef epanet <handle
                 % Skip blank Clines and comments
                 if isempty(tok), continue, end
                 if (tok(1) == ';'), continue, end
-                if (tok(1) == '[')
-                       % [PIPES] section
-                    if strcmpi(tok(1:5),'[PIPE')
-                        sect=1;
-                        value.BinLinkPipeNameID={};
-                        value.BinLinkPipeIndex=[];
-                        value.BinLinkFromNode={};
-                        value.BinLinkToNode={};
-                        value.BinLinkPipeLengths=[];
-                        value.BinLinkPipeDiameters=[];
-                        value.BinLinkPipeRoughness=[];
-                        value.BinLinkPipeMinorLoss=[];
-                        continue;
-                        % [PUMPS] section
-                    elseif strcmpi(tok(1:5),'[PUMP')
-                        sect=2;
-                        value.BinLinkPumpNameID={};
-                        value.BinLinkPumpIndex=[];
-                        value.BinLinkPumpPatterns={};
-                        value.BinLinkPumpCurveNameID={};
-                        value.BinLinkPumpPower=[];
-                        value.BinLinkPumpNameIDPower={};
-                        continue;
-                        % [VALVES] section
-                    elseif strcmpi(tok(1:5),'[VALV')
-                        sect=3;
-                        value.BinLinkValveNameID={};
-                        value.BinLinkValveIndex=[];
-                        value.BinLinkValveDiameters=[];
-                        value.BinLinkValveType={};
-                        value.BinLinkValveSetting=[];
-                        value.BinLinkValveMinorLoss=[];                        
-                        continue;
-                        % [STATUS] section
-                    elseif strcmpi(tok(1:5),'[STAT')
-                        sect=4;d=1;
-                        value.BinLinkInitialStatus={};
-                        value.BinLinkInitialStatusNameID={};
-                        value.BinCountStatuslines=0;
-                        continue;                        
-                    elseif strcmpi(tok(1:5),'[REAC')
-                        sect=5;d=1;
-                        value.BinLinkGlobalBulkReactionCoeff=[];
-                        value.BinLinkGlobalWallReactionCoeff=[];
-                        value.BinLinkBulkReactionCoeff=[];
-                        value.BinLinkWallReactionCoeff=[];
-                        value.BinCountReactionlines=0;         
-                        value.BinLinkPipeCount = length(value.BinLinkPipeNameID);
-                        value.BinLinkPumpCount = length(value.BinLinkPumpNameID);
-                        value.BinLinkValveCount = length(value.BinLinkValveNameID);
-                        value.BinLinkCount = value.BinLinkPipeCount+value.BinLinkPumpCount+value.BinLinkValveCount;
-                        value.BinLinkNameID = [value.BinLinkPipeNameID value.BinLinkPumpNameID value.BinLinkValveNameID];
-                        continue;                        
-                        % [END]
-                    elseif strcmpi(tok(1:4),'[END')
-                        break;
-                    else
-                        sect = 0;
-                        continue;
-                    end
-                end
-                clear atline;
-                a = regexp(tline, '\s*','split');uu=1;
-                for tt=1:length(a)
-                    if isempty(a{tt})
-                        %skip
-                    elseif sum(a{tt}==';')
-                        %skip
-                        if tt>1,  break; end
-                    else
-                        atline{uu}=a{tt}; uu=uu+1;
-                    end
-                end
-                if sect==0
-                    continue;
-                    % Links
-                elseif sect==1
-                    value.BinLinkPipeNameID{t}=atline{1};
-                    value.BinLinkPipeIndex(t)=t;
-                    value.BinLinkFromNode{t}=atline{2};
-                    value.BinLinkToNode{t}=atline{3};
-                    value.BinLinkPipeLengths(t)=str2num(atline{4});
-                    value.BinLinkPipeDiameters(t)=str2num(atline{5});
-                    value.BinLinkPipeRoughness(t)=str2num(atline{6});
-                    if length(atline)>6
-                        value.BinLinkPipeMinorLoss(t)=str2num(atline{7});
-                    end
-                    value.BinLinkType={};
-                    if length(atline)>7
-                        value.BinLinkPipeStatus{t}=atline{8};
-                    else
-                        value.BinLinkPipeStatus{t}='Open';
-                    end
-                    t=t+1;
-                elseif sect==2
-                    value.BinLinkPumpNameID{q}=atline{1};
-                    value.BinLinkPumpIndex(q)=t;
-                    value.BinLinkFromNode{t}=atline{2};
-                    value.BinLinkToNode{t}=atline{3};
-                    if strcmp(regexp(tline,'\w*HEAD*\w','match'),'HEAD')
-                        value.BinLinkPumpCurveNameID{q}=atline{5};
-                    elseif strcmp(regexp(tline,'\w*POWER*\w','match'),'POWER')
-                        value.BinLinkPumpPower(q)=str2num(atline{5});
-                        value.BinLinkPumpNameIDPower{q}=atline{1};
-                    end
-                    if length(atline)>6
-                        value.BinLinkPumpPatterns{q}=atline{7};
-                    end
-                    t=t+1;
-                    q=q+1;
-                elseif sect==3
-                    value.BinLinkValveNameID{i}=atline{1};
-                    value.BinLinkValveIndex(i)=t;
-                    value.BinLinkFromNode{t}=atline{2};
-                    value.BinLinkToNode{t}=atline{3};
-                    value.BinLinkValveDiameters(i)=str2num(atline{4});
-                    value.BinLinkValveType{i}=atline{5};
-                    value.BinLinkValveSetting(i)=str2num(atline{6});
-                    if length(atline)>6
-                        value.BinLinkValveMinorLoss(i)=str2num(atline{7});
-                    end
-                    t=t+1;
-                    i=i+1;
-                    % Status
-                elseif sect==4
-                    value.BinLinkInitialStatus{d}=atline{2};
-                    value.BinLinkInitialStatusNameID{d}=atline{1};
-                    value.BinCountStatuslines=d;
-                    d=d+1;                    
-                    % Reactions
-                elseif sect==5
-                    if strcmpi(upper(atline{1}),'GLOBAL') && strcmpi(upper(atline{2}),'BULK')
-                        value.BinLinkGlobalBulkReactionCoeff=str2num(atline{3});
-                    elseif strcmpi(upper(atline{1}),'GLOBAL') && strcmpi(upper(atline{2}),'WALL')
-                        value.BinLinkGlobalWallReactionCoeff=str2num(atline{3});
-                        value.BinLinkWallReactionCoeff=value.BinLinkGlobalWallReactionCoeff*ones(1,value.BinLinkCount);
-                        value.BinLinkBulkReactionCoeff=value.BinLinkGlobalBulkReactionCoeff*ones(1,value.BinLinkCount);
-                        value.BinLinkWallReactionCoeff(value.BinLinkPumpIndex)=0;
-                        value.BinLinkWallReactionCoeff(value.BinLinkValveIndex)=0;
-                        value.BinLinkBulkReactionCoeff(value.BinLinkPumpIndex)=0;
-                        value.BinLinkBulkReactionCoeff(value.BinLinkValveIndex)=0;
-                    end
-                    if strcmpi(upper(atline{1}),'BULK')
-                        LinkIndex = find(strcmpi(value.BinLinkNameID,atline{2}));
-                        value.BinLinkBulkReactionCoeff(LinkIndex)=str2num(atline{3});
-                    elseif strcmpi(upper(atline{1}),'WALL')
-                        LinkIndex = find(strcmpi(value.BinLinkNameID,atline{2}));
-                        value.BinLinkWallReactionCoeff(LinkIndex)=str2num(atline{3});
-                    end
-                    value.countReactionlines=d;
-                    d=d+1;
+                [value, cont, sect, i,t,q,d] = getLV(tok,value,sect,tline,i,t,q,d);
+                if cont==0
+                    break;
                 end
             end
             if ~sum(value.BinLinkBulkReactionCoeff)
@@ -6934,48 +6709,7 @@ classdef epanet <handle
                             atline{uu}=a{tt}; uu=uu+1;
                         end
                     end
-                    switch upper(atline{1})
-                        case 'UNITS'
-                            value.BinLinkFlowUnits=atline{2};
-                        case 'HEADLOSS'
-                            value.BinOptionsHeadloss=atline{2};
-                        case 'PRESSURE'
-                            value.BinNodePressureUnits=atline{2};
-                        case 'SPECIFIC'
-                            value.BinOptionsSpecificGravity=str2num(atline{3});
-                        case 'VISCOSITY'
-                            value.BinOptionsViscosity=str2num(atline{2});
-                        case 'TRIALS'
-                            value.BinOptionsMaxTrials=str2num(atline{2});
-                        case 'ACCURACY'
-                            value.BinOptionsAccuracyValue=single(str2num(atline{2}));
-                        case 'UNBALANCED'
-                            value.BinOptionsUnbalanced= atline(2:end);
-                        case 'PATTERN'
-                            value.BinOptionsPattern=str2num(atline{2});
-                        case 'DEMAND'
-                            value.BinOptionsPatternDemandMultiplier=str2num(atline{3});
-                        case 'EMITTER'
-                            value.BinOptionsEmitterExponent=str2num(atline{3});
-                        case 'QUALITY'
-                            value.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
-                            value.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
-                            if isempty(value.BinQualityCode)
-                                value.BinQualityCode=1;
-                            end
-                            if length(atline)>2
-                                if value.BinQualityCode==3
-                                    value.BinQualityTraceNodeIndex=obj.getBinNodeIndex(atline{3});
-                                    value.BinQualityTraceNodeID=atline{3};
-                                else
-                                    value.BinQualityUnits=atline{3};
-                                end
-                            end
-                        case 'DIFFUSIVITY' 
-                            value.BinOptionsDiffusivity=str2num(atline{2});  
-                        case 'TOLERANCE' 
-                            value.BinOptionsQualityTolerance=single(str2num(atline{2})); 
-                    end
+                    value = getOptionsValues(obj, value, atline);
                 end
             end
             % US Customary - SI metric
@@ -7088,49 +6822,13 @@ classdef epanet <handle
                     end
                     r=atline{2};
                     if length(atline)>2 
-                        if ~strcmp(upper(atline{end}),'HOURS')
-                            r=atline{3};
+                        if find(~strcmp(upper(atline{end}),{'HOURS','MIN','SECONDS','MINUTES','DAYS'})==0)
+                            r=atline{end-1};
+                        else
+                            r=atline{end};
                         end
                     end
-                    tmpt=[0 0];
-                    if sum(r==':')
-                        r=regexp(r,':','split');
-                        tmpt(1)=str2num(r{1});
-                        tmpt(2)=str2num(r{2});
-                        secnd=tmpt(1)*3600+tmpt(2)*60;
-                        if length(r)>2
-                            secnd=secnd+str2num(r{3}); 
-                        end
-                    else
-                        tmp=3600;
-                        if strcmp(upper(atline{end}),'MIN')
-                            tmp=60;
-                        end
-                        secnd=single(str2num(r)*tmp);
-                    end
-                    switch upper(atline{1})
-                        case 'DURATION'
-                            value.BinTimeSimulationDuration=secnd;
-                        case 'HYDRAULIC'
-                            value.BinTimeHydraulicStep=secnd;
-                        case 'QUALITY'
-                            value.BinTimeQualityStep=secnd;
-                        case 'PATTERN'
-                            if strcmp(upper(atline{2}),'TIMESTEP')
-                                value.BinTimePatternStep=secnd;
-                            elseif strcmp(upper(atline{2}),'START')
-                                value.BinTimePatternStart=secnd;
-                            end
-                        case 'REPORT'
-                            if strcmp(upper(atline{2}),'TIMESTEP')
-                                value.BinTimeReportingStep=secnd;
-                            elseif strcmp(upper(atline{2}),'START')
-                                value.BinTimeReportingStart=secnd;
-                            end
-                        case 'STATISTIC' 
-                            value.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
-                            value.BinTimeStatistics=obj.TYPESTATS{value.BinTimeStatisticsIndex+1};
-                    end                            
+                    value = getTimes(obj, r, atline, value);                            
                 end
             end
         end
@@ -11428,4 +11126,253 @@ function indices = getIndices(cnt, varargin)
     else
         indices=varargin{1}{1};
     end 
+end
+function value = getTimes(obj, r, atline, value)
+    tmpt=[0 0];
+    if sum(r==':')
+        r=regexp(r,':','split');
+        tmpt(1)=str2num(r{1});
+        tmpt(2)=str2num(r{2});
+        secnd=tmpt(1)*3600+tmpt(2)*60;
+        if length(r)>2
+            secnd=secnd+str2num(r{3}); 
+        end
+    else
+        tmp=3600;
+        switch upper(atline{end})
+            case 'MIN'
+                tmp=60;
+            case 'MINUTES'
+                tmp=60;
+            case 'SECONDS'
+                tmp=1/60;
+            case 'SEC'
+                tmp=1/60;
+            case 'DAYS'
+                tmp=24;
+        end
+        secnd=single(str2num(r)*tmp);
+    end
+    switch upper(atline{1})
+        case 'DURATION'
+            value.BinTimeSimulationDuration=secnd;
+        case 'HYDRAULIC'
+            value.BinTimeHydraulicStep=secnd;
+        case 'QUALITY'
+            value.BinTimeQualityStep=secnd;
+        case 'PATTERN'
+            if strcmp(upper(atline{2}),'TIMESTEP')
+                value.BinTimePatternStep=secnd;
+            elseif strcmp(upper(atline{2}),'START')
+                value.BinTimePatternStart=secnd;
+            end
+        case 'REPORT'
+            if strcmp(upper(atline{2}),'TIMESTEP')
+                value.BinTimeReportingStep=secnd;
+            elseif strcmp(upper(atline{2}),'START')
+                value.BinTimeReportingStart=secnd;
+            end
+        case 'STATISTIC' 
+            value.BinTimeStatisticsIndex=find((strcmpi(obj.TYPESTATS,atline{2})-1)>-1)-1;
+            value.BinTimeStatistics=obj.TYPESTATS{value.BinTimeStatisticsIndex+1};
+    end    
+end
+function value = getOptionsValues(obj, value, atline)
+    switch upper(atline{1})
+        case 'UNITS'
+            value.BinLinkFlowUnits=atline{2};
+        case 'HEADLOSS'
+            value.BinOptionsHeadloss=atline{2};
+        case 'PRESSURE'
+            value.BinNodePressureUnits=atline{2};
+        case 'SPECIFIC'
+            value.BinOptionsSpecificGravity=str2num(atline{3});
+        case 'VISCOSITY'
+            value.BinOptionsViscosity=str2num(atline{2});
+        case 'TRIALS'
+            value.BinOptionsMaxTrials=str2num(atline{2});
+        case 'ACCURACY'
+            value.BinOptionsAccuracyValue=single(str2num(atline{2}));
+        case 'UNBALANCED'
+            value.BinOptionsUnbalanced= atline(2:end);
+        case 'PATTERN'
+            value.BinOptionsPattern=str2num(atline{2});
+        case 'DEMAND'
+            value.BinOptionsPatternDemandMultiplier=str2num(atline{3});
+        case 'EMITTER'
+            value.BinOptionsEmitterExponent=str2num(atline{3});
+        case 'QUALITY'
+            value.BinQualityType=atline{2};% Water quality analysis code (None:0/Chemical:1/Age:2/Trace:3)
+            value.BinQualityCode=find((strcmpi(obj.TYPEQUALITY,atline{2})-1)>-1)-1;
+            if isempty(value.BinQualityCode)
+                value.BinQualityCode=1;
+            end
+            if length(atline)>2
+                if value.BinQualityCode==3
+                    value.BinQualityTraceNodeIndex=obj.getBinNodeIndex(atline{3});
+                    value.BinQualityTraceNodeID=atline{3};
+                else
+                    value.BinQualityUnits=atline{3};
+                end
+            end
+        case 'DIFFUSIVITY' 
+            value.BinOptionsDiffusivity=str2num(atline{2});  
+        case 'TOLERANCE' 
+            value.BinOptionsQualityTolerance=single(str2num(atline{2})); 
+    end
+end
+function [value, cont, sect, i,t,q,d] = getLV(tok,value,sect,tline,i,t,q,d)
+    cont=1;
+    if (tok(1) == '[')
+           % [PIPES] section
+        if strcmpi(tok(1:5),'[PIPE')
+            sect=1;
+            value.BinLinkPipeNameID={};
+            value.BinLinkPipeIndex=[];
+            value.BinLinkFromNode={};
+            value.BinLinkToNode={};
+            value.BinLinkPipeLengths=[];
+            value.BinLinkPipeDiameters=[];
+            value.BinLinkPipeRoughness=[];
+            value.BinLinkPipeMinorLoss=[];
+            cont=1;return;
+            % [PUMPS] section
+        elseif strcmpi(tok(1:5),'[PUMP')
+            sect=2;
+            value.BinLinkPumpNameID={};
+            value.BinLinkPumpIndex=[];
+            value.BinLinkPumpPatterns={};
+            value.BinLinkPumpCurveNameID={};
+            value.BinLinkPumpPower=[];
+            value.BinLinkPumpNameIDPower={};
+            cont=1;return;
+            % [VALVES] section
+        elseif strcmpi(tok(1:5),'[VALV')
+            sect=3;
+            value.BinLinkValveNameID={};
+            value.BinLinkValveIndex=[];
+            value.BinLinkValveDiameters=[];
+            value.BinLinkValveType={};
+            value.BinLinkValveSetting=[];
+            value.BinLinkValveMinorLoss=[];                        
+            cont=1;return;
+            % [STATUS] section
+        elseif strcmpi(tok(1:5),'[STAT')
+            sect=4;
+            value.BinLinkInitialStatus={};
+            value.BinLinkInitialStatusNameID={};
+            value.BinCountStatuslines=0;
+            cont=1;return;                        
+        elseif strcmpi(tok(1:5),'[REAC')
+            sect=5;
+            value.BinLinkGlobalBulkReactionCoeff=[];
+            value.BinLinkGlobalWallReactionCoeff=[];
+            value.BinLinkBulkReactionCoeff=[];
+            value.BinLinkWallReactionCoeff=[];
+            value.BinCountReactionlines=0;         
+            value.BinLinkPipeCount = length(value.BinLinkPipeNameID);
+            value.BinLinkPumpCount = length(value.BinLinkPumpNameID);
+            value.BinLinkValveCount = length(value.BinLinkValveNameID);
+            value.BinLinkCount = value.BinLinkPipeCount+value.BinLinkPumpCount+value.BinLinkValveCount;
+            value.BinLinkNameID = [value.BinLinkPipeNameID value.BinLinkPumpNameID value.BinLinkValveNameID];
+            cont=1;return;                        
+            % [END]
+        elseif strcmpi(tok(1:4),'[END')
+            cont=0;return;
+        else
+            sect = 0;
+            cont=1;return;
+        end
+    end
+    clear atline;
+    a = regexp(tline, '\s*','split');uu=1;
+    for tt=1:length(a)
+        if isempty(a{tt})
+            %skip
+        elseif sum(a{tt}==';')
+            %skip
+            if tt>1,  break; end
+        else
+            atline{uu}=a{tt}; uu=uu+1;
+        end
+    end
+    if sect==0
+        return;
+        % Links
+    elseif sect==1
+        value.BinLinkPipeNameID{t}=atline{1};
+        value.BinLinkPipeIndex(t)=t;
+        value.BinLinkFromNode{t}=atline{2};
+        value.BinLinkToNode{t}=atline{3};
+        value.BinLinkPipeLengths(t)=str2num(atline{4});
+        value.BinLinkPipeDiameters(t)=str2num(atline{5});
+        value.BinLinkPipeRoughness(t)=str2num(atline{6});
+        if length(atline)>6
+            value.BinLinkPipeMinorLoss(t)=str2num(atline{7});
+        end
+        value.BinLinkType={};
+        if length(atline)>7
+            value.BinLinkPipeStatus{t}=atline{8};
+        else
+            value.BinLinkPipeStatus{t}='Open';
+        end
+        t=t+1;
+    elseif sect==2
+        value.BinLinkPumpNameID{q}=atline{1};
+        value.BinLinkPumpIndex(q)=t;
+        value.BinLinkFromNode{t}=atline{2};
+        value.BinLinkToNode{t}=atline{3};
+        if strcmp(regexp(tline,'\w*HEAD*\w','match'),'HEAD')
+            value.BinLinkPumpCurveNameID{q}=atline{5};
+        elseif strcmp(regexp(tline,'\w*POWER*\w','match'),'POWER')
+            value.BinLinkPumpPower(q)=str2num(atline{5});
+            value.BinLinkPumpNameIDPower{q}=atline{1};
+        end
+        if length(atline)>6
+            value.BinLinkPumpPatterns{q}=atline{7};
+        end
+        t=t+1;
+        q=q+1;
+    elseif sect==3
+        value.BinLinkValveNameID{i}=atline{1};
+        value.BinLinkValveIndex(i)=t;
+        value.BinLinkFromNode{t}=atline{2};
+        value.BinLinkToNode{t}=atline{3};
+        value.BinLinkValveDiameters(i)=str2num(atline{4});
+        value.BinLinkValveType{i}=atline{5};
+        value.BinLinkValveSetting(i)=str2num(atline{6});
+        if length(atline)>6
+            value.BinLinkValveMinorLoss(i)=str2num(atline{7});
+        end
+        t=t+1;
+        i=i+1;
+        % Status
+    elseif sect==4
+        value.BinLinkInitialStatus{d}=atline{2};
+        value.BinLinkInitialStatusNameID{d}=atline{1};
+        value.BinCountStatuslines=d;
+        d=d+1;                    
+        % Reactions
+    elseif sect==5
+        if strcmpi(upper(atline{1}),'GLOBAL') && strcmpi(upper(atline{2}),'BULK')
+            value.BinLinkGlobalBulkReactionCoeff=str2num(atline{3});
+        elseif strcmpi(upper(atline{1}),'GLOBAL') && strcmpi(upper(atline{2}),'WALL')
+            value.BinLinkGlobalWallReactionCoeff=str2num(atline{3});
+            value.BinLinkWallReactionCoeff=value.BinLinkGlobalWallReactionCoeff*ones(1,value.BinLinkCount);
+            value.BinLinkBulkReactionCoeff=value.BinLinkGlobalBulkReactionCoeff*ones(1,value.BinLinkCount);
+            value.BinLinkWallReactionCoeff(value.BinLinkPumpIndex)=0;
+            value.BinLinkWallReactionCoeff(value.BinLinkValveIndex)=0;
+            value.BinLinkBulkReactionCoeff(value.BinLinkPumpIndex)=0;
+            value.BinLinkBulkReactionCoeff(value.BinLinkValveIndex)=0;
+        end
+        if strcmpi(upper(atline{1}),'BULK')
+            LinkIndex = find(strcmpi(value.BinLinkNameID,atline{2}));
+            value.BinLinkBulkReactionCoeff(LinkIndex)=str2num(atline{3});
+        elseif strcmpi(upper(atline{1}),'WALL')
+            LinkIndex = find(strcmpi(value.BinLinkNameID,atline{2}));
+            value.BinLinkWallReactionCoeff(LinkIndex)=str2num(atline{3});
+        end
+        value.countReactionlines=d;
+        d=d+1;
+    end
 end
