@@ -4656,7 +4656,10 @@ classdef epanet <handle
             values=varargin{1};
             [Errcode]=setBinParam(obj,11,values,sections);
         end
-        function saveBinInpFile(obj)
+        function saveBinInpFile(obj, varargin)
+            if ~isempty(varargin)
+                copyfile(obj.BinTempfile,varargin{1}); return;
+            end
             [tlines]=regexp( fileread([obj.BinTempfile]), '\n', 'split');
             f = fopen([obj.BinTempfile],'w');
             % /*Write [TITLE] section */
