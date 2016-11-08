@@ -2532,7 +2532,7 @@ classdef epanet <handle
             if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
                 [~,lpwd]=system(['cmd /c for %A in ("',obj.MSXLibEPANETPath,'") do @echo %~sA']);
                 libPwd=regexp(lpwd,'\s','split');
-                r = sprintf('%s\\epanetmsx.exe %s %s %s',libPwd{1},inpfile,obj.MSXTempFile,rptfile);
+                r = sprintf('%s\\epanetmsx.exe %s %s %s *.*',libPwd{1},inpfile,obj.MSXTempFile,rptfile);
             end
             [status,result] = system(r);
         end
@@ -5893,11 +5893,11 @@ classdef epanet <handle
                 value.BinMagicNumber=fread(fid1, 1, 'uint32')';
                 fclose(fid1);
             end
-            if fid==-1
-                fprintf('"Run was unsuccessful."\n');
-            else
-                fprintf('"Run was successful."\n');
-            end
+%             if fid==-1
+%                 fprintf('"Run was unsuccessful."\n');
+%             else
+%                 fprintf('"Run was successful."\n');
+%             end
         end
         function [info,tline,allines] = readInpFile(obj,varargin)
             if ~sum(strcmp(who,'varargin'))
@@ -9845,9 +9845,15 @@ else
 end
 type_n='[CONTROLS]';
 [~,info] = obj.readInpFile;
+m = strfind(info, type_n);
+Index = find(not(cellfun('isempty', m)));
 fid2 = fopen([obj.BinTempfile],'w');
-noo=0;s=0;sps=blanks(15);
-for t = 1:length(info)
+noo=0;s=0;sps=blanks(15);goOut=0;
+for i=1:Index-1
+    fprintf(fid2,'%s',info{i});
+    fprintf(fid2,'\n');
+end                    
+for t = Index:length(info)
     c = info{t};
     a = regexp(c, '\s*','split');
     if isempty(a)
@@ -9859,16 +9865,13 @@ for t = 1:length(info)
                 fprintf(fid2,'[CONTROLS]');
                 s=1; break;
             end
-            rr = regexp(a,'\w*[\w*]\w*','split');
-            check_brackets = rr{:};
-            ch1 = strcmp(check_brackets,'[');
-            ch2 = strcmp(check_brackets,']');
-            if (ch1(1)==1 && ch2(2)==1 && (s==1) && noo==0)
+            if (s==1) && (noo==0)
                 if (nargin==2)
                     for i=1:length(controls)
                         fprintf(fid2, controls(i,:));
                         fprintf(fid2,'\r\n');
                     end
+                    goOut=1;
                 else
                     fprintf(fid2, '%s',syntax);
                 end
@@ -9876,6 +9879,13 @@ for t = 1:length(info)
                 fprintf(fid2,'\r\n');
                 fprintf(fid2,'%s',a{u});
                 fprintf(fid2,'\r\n');
+                if goOut
+                    for i=t:length(info)
+                        fprintf(fid2,'%s',info{i});
+                        fprintf(fid2,'\n');
+                    end
+                    break;
+                end
                 noo=1;
             elseif isempty(a{u}) && noo==0
             else
@@ -9886,6 +9896,9 @@ for t = 1:length(info)
             end
             u=u+1;
         end
+    end
+    if goOut
+        break;
     end
     fprintf(fid2,'\n');
 end
@@ -10802,13 +10815,13 @@ function [fid,binfile] = runEPANETexe(obj)
     inpfile=[mmPwd{1},'/',tempfile,'.inp'];
     rptfile=[inpfile(1:length(inpfile)-4),'.txt'];
     binfile=[inpfile(1:length(inpfile)-4),'.bin'];
-    if exist(binfile)==2, fclose all; delete(binfile); end
+%     if exist(binfile)==2, fclose all; delete(binfile); end
     if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
         [~,lpwd]=system(['cmd /c for %A in ("',obj.LibEPANETpath,'") do @echo %~sA']);
         libPwd=regexp(lpwd,'\s','split');
-        r = sprintf('%s\\epanet2d.exe %s %s %s',libPwd{1},inpfile,rptfile,binfile);
+        r = sprintf('%s\\epanet2d.exe %s %s %s *.*',libPwd{1},inpfile,rptfile,binfile);
     end
-    system(r);
+    [~,~]=system(r);
     fid = fopen(binfile,'r');
 end
 function value = getBinComputedTimeSeries(obj,indParam,varargin)
@@ -10937,11 +10950,11 @@ function value = getBinComputedTimeSeries(obj,indParam,varargin)
         end
         fclose(fid1);
     end
-    if fid==-1
-        fprintf('"Run was unsuccessful."\n');
-    else
-        fprintf('"Run was successful."\n');
-    end
+%     if fid==-1
+%         fprintf('"Run was unsuccessful."\n');
+%     else
+%         fprintf('"Run was successful."\n');
+%     end
 end
 function Errcode=addLinkWarnings(obj,typecode,newLink,toNode)
 % Check if id new already exists
