@@ -371,6 +371,7 @@ classdef epanet <handle
         BinTimeStatisticsIndex;      % Index of time series post-processing type ('NONE':0,'AVERAGE':1,'MINIMUM':2,'MAXIMUM':3, 'RANGE':4)
         BinUnits;                    % Units of all parameters
         BinUnits_US_Customary;       % Equal with 1 if is US-Customary 
+        CMDCODE;                     % Code=1 Hide, Code=0 Show (messages at command window)
     end
     properties (Constant = true)
         classversion='2.1b';
@@ -479,7 +480,8 @@ classdef epanet <handle
                     warning('Could not open the file, please check INP file.');return;
                 end
             end
-            
+            % Hide messages at command window from bin computed
+            obj.CMDCODE=1;
             % Get some link data
             [obj.LinkDiameter,obj.LinkLength,obj.LinkRoughnessCoeff,obj.LinkMinorLossCoeff,obj.LinkInitialStatus,...
             obj.LinkInitialSetting,obj.LinkBulkReactionCoeff,obj.LinkWallReactionCoeff,obj.NodesConnectingLinksIndex,...
@@ -2502,7 +2504,9 @@ classdef epanet <handle
         function unload(obj)
             ENclose(obj.LibEPANET);
             ENMatlabCleanup(obj.LibEPANET);
-            fclose all;
+            fclose('all');
+            files=dir('@#*');
+            if ~isempty(files); delete('@#*'); end
             if exist([obj.BinTempfile(1:end-4),'.bin'])==2
                 delete([obj.BinTempfile(1:end-4),'.bin']);
             end
@@ -2521,20 +2525,6 @@ classdef epanet <handle
             else
                 MSXMatlabSetup(obj,msxname,varargin);
             end
-        end
-        function [status,result] = runMSXexe(obj, varargin)
-            inpfile=obj.BinTempfile;
-            if isempty(varargin)
-                rptfile=[inpfile(1:length(inpfile)-4),'.txt'];
-            else
-                rptfile=varargin{1};
-            end
-            if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
-                [~,lpwd]=system(['cmd /c for %A in ("',obj.MSXLibEPANETPath,'") do @echo %~sA']);
-                libPwd=regexp(lpwd,'\s','split');
-                r = sprintf('%s\\epanetmsx.exe %s %s %s *.*',libPwd{1},inpfile,obj.MSXTempFile,rptfile);
-            end
-            [status,result] = system(r);
         end
         function value = getMSXEquationsTerms(obj)
             [value,~,~] = getEquations(obj.MSXFile);
@@ -3094,12 +3084,28 @@ classdef epanet <handle
             [obj.Errcode]=MSXreport(obj.MSXLibEPANET);
         end
         function [status,result] = writeMSXReportExe(obj, varargin)
-            if ~isempty(varargin)
-                varargin=varargin{1};
+            if isempty(varargin)
+                rptfile=['@#',char(java.util.UUID.randomUUID),'.txt'];
             else
-                varargin=[obj.BinTempfile(1:length(obj.BinTempfile)-4),'.txt'];
+                rptfile=varargin{1};
             end
-            [status,result] = obj.runMSXexe(varargin);
+            [status,result] = runMSXexe(obj, rptfile);
+        end
+        function value = getMSXComputedResultsBinary(obj)
+            uuID = char(java.util.UUID.randomUUID);
+            binfile=['@#',uuID,'.bin'];
+            obj.solveMSXCompleteHydraulics;
+            obj.saveHydraulicsOutputReportingFile;
+            obj.solveMSXCompleteQuality;
+            obj.saveMSXQualityFile(binfile);
+            value = readMSXBinaryFile(binfile);
+        end
+        function value = getMSXComputedResultsBinaryExe(obj)
+            uuID = char(java.util.UUID.randomUUID);
+            rptfile=['@#',uuID,'.txt'];
+            binfile=['@#',uuID,'.bin'];
+            runMSXexe(obj, rptfile, binfile);
+            value = readMSXBinaryFile(binfile);
         end
         function index = addMSXPattern(obj,varargin)
             index=-1;
@@ -5808,7 +5814,7 @@ classdef epanet <handle
         function value = getBinComputedAverageSourceInflow(obj,varargin)
             value = getBinComputedTimeSeries(obj,26);
         end
-        function value = getBinComputedAllParameters(obj)
+        function value = getBinComputedAllParameters(obj, varargin)
             value=[];
             [fid,binfile] = runEPANETexe(obj);
             if fid~=-1
@@ -5891,13 +5897,11 @@ classdef epanet <handle
                 value.BinNumberReportingPeriods2=fread(fid1, 1, 'uint32')';
                 value.BinWarningFlag=fread(fid1, 1, 'uint32')';
                 value.BinMagicNumber=fread(fid1, 1, 'uint32')';
-                fclose(fid1);
+            else
+                fid1=fid;
             end
-%             if fid==-1
-%                 fprintf('"Run was unsuccessful."\n');
-%             else
-%                 fprintf('"Run was successful."\n');
-%             end
+            fclose(fid1);
+            ps = recycle('off'); delete(binfile); recycle(ps);
         end
         function [info,tline,allines] = readInpFile(obj,varargin)
             if ~sum(strcmp(who,'varargin'))
@@ -6831,6 +6835,14 @@ classdef epanet <handle
                     value = getTimes(obj, r, atline, value);                            
                 end
             end
+        end
+        function value = getCMDCODE(obj)
+            value = obj.CMDCODE;
+        end
+        function setCMDCODE(obj, code)
+            value = code;
+            if code~=0 && code~=1,  value = obj.CMDCODE; end
+            obj.CMDCODE = value;
         end
     end
 end
@@ -10808,20 +10820,24 @@ elseif strcmp(previousFlowUnits,'CMD')
     end
 end
 end
-function [fid,binfile] = runEPANETexe(obj)
+function [fid,binfile,rptfile] = runEPANETexe(obj)
     [tmppath,tempfile]=fileparts(obj.BinTempfile);
     [~,mm]=system(['cmd /c for %A in ("',tmppath,'") do @echo %~sA']);
     mmPwd=regexp(mm,'\s','split');
     inpfile=[mmPwd{1},'/',tempfile,'.inp'];
-    rptfile=[inpfile(1:length(inpfile)-4),'.txt'];
-    binfile=[inpfile(1:length(inpfile)-4),'.bin'];
-%     if exist(binfile)==2, fclose all; delete(binfile); end
+    uuID = char(java.util.UUID.randomUUID);
+    rptfile=['@#',uuID,'.txt'];
+    binfile=['@#',uuID,'.bin'];%[inpfile(1:length(inpfile)-4),'.bin'];
     if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
         [~,lpwd]=system(['cmd /c for %A in ("',obj.LibEPANETpath,'") do @echo %~sA']);
         libPwd=regexp(lpwd,'\s','split');
-        r = sprintf('%s\\epanet2d.exe %s %s %s *.*',libPwd{1},inpfile,rptfile,binfile);
+        r = sprintf('%s\\epanet2d.exe %s %s %s',libPwd{1},inpfile,rptfile,binfile);
     end
-    [~,~]=system(r);
+    if obj.getCMDCODE, [~,~]=system(r); else system(r);
+    end
+    if exist(rptfile)==2 
+        fclose('all'); ps = recycle('off'); delete(rptfile); recycle(ps);
+    end
     fid = fopen(binfile,'r');
 end
 function value = getBinComputedTimeSeries(obj,indParam,varargin)
@@ -10849,112 +10865,117 @@ function value = getBinComputedTimeSeries(obj,indParam,varargin)
         fread(fid1, 32*BinNodeCount+32*BinLinkCount, '*char'); % error NODES*32
         fread(fid1, BinLinkCount*3, 'uint32');
         fread(fid1, BinNodeResTankCount*2, 'uint32'); % error
-        if indParam==1
-            value =fread(fid1, BinNodeCount, 'float')';return; % ElevationEachNode
-        elseif indParam==2
-            fread(fid1, BinNodeCount, 'float');
-            value =fread(fid1, BinLinkCount, 'float')';return; % LengthEachLink
-        elseif indParam==3
-            fread(fid1, BinNodeCount+BinLinkCount, 'float');
-            value =fread(fid1, BinLinkCount, 'float')';return; % DiameterEachLink
-        elseif indParam==4
-            fread(fid1, BinNodeCount+BinLinkCount*2, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % PumpIndexListLinks
-        elseif indParam==5
-            fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % PumpUtilization
-        elseif indParam==6
-            fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*2, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageEfficiency
-        elseif indParam==7
-            fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*3, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageKwattsOrMillionGallons
-        elseif indParam==8
-            fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*4, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageKwatts
-        elseif indParam==9
-            fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*5, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % PeakKwatts
-        elseif indParam==10
-            fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*6, 'float');
-            value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageCostPerDay
+        switch indParam
+            case 1
+                value =fread(fid1, BinNodeCount, 'float')';return; % ElevationEachNode
+            case 2
+                fread(fid1, BinNodeCount, 'float');
+                value =fread(fid1, BinLinkCount, 'float')';return; % LengthEachLink
+            case 3
+                fread(fid1, BinNodeCount+BinLinkCount, 'float');
+                value =fread(fid1, BinLinkCount, 'float')';return; % DiameterEachLink
+            case 4
+                fread(fid1, BinNodeCount+BinLinkCount*2, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % PumpIndexListLinks
+            case 5
+                fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % PumpUtilization
+            case 6
+                fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*2, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageEfficiency
+            case 7
+                fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*3, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageKwattsOrMillionGallons
+            case 8
+                fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*4, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageKwatts
+            case 9
+                fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*5, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % PeakKwatts
+            case 10
+                fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*6, 'float');
+                value =fread(fid1, BinLinkPumpCount, 'float')';return; % AverageCostPerDay
         end
         if indParam>10
             fread(fid1, BinNodeCount+BinLinkCount*2+BinLinkPumpCount*7+1, 'float');
         end
         for i=1:NumberReportingPeriods
-            if indParam==11
-                value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodeDemand
-                fread(fid1, BinNodeCount*3, 'float');
-                fread(fid1, BinLinkCount*8, 'float');
-            elseif indParam==12
-                fread(fid1, BinNodeCount, 'float');
-                value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodeHead
-                fread(fid1, BinNodeCount*2, 'float');
-                fread(fid1, BinLinkCount*8, 'float');
-            elseif indParam==13
-                fread(fid1, BinNodeCount*2, 'float');
-                value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodePressure
-                fread(fid1, BinNodeCount, 'float');
-                fread(fid1, BinLinkCount*8, 'float');
-            elseif indParam==14
-                fread(fid1, BinNodeCount*3, 'float');
-                value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodeQuality
-                fread(fid1, BinLinkCount*8, 'float');
-            elseif indParam==15
-                fread(fid1, BinNodeCount*4, 'float');
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkFlow
-                fread(fid1, BinLinkCount*7, 'float');
-            elseif indParam==16
-                fread(fid1, BinNodeCount*4+BinLinkCount, 'float');
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkVelocity
-                fread(fid1, BinLinkCount*6, 'float');
-            elseif indParam==17
-                fread(fid1, BinNodeCount*4+BinLinkCount*2, 'float');
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkHeadloss
-                fread(fid1, BinLinkCount*5, 'float');
-            elseif indParam==18
-                fread(fid1, BinNodeCount*4+BinLinkCount*3, 'float');
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkQuality
-                fread(fid1, BinLinkCount*4, 'float');
-            elseif indParam==19
-                fread(fid1, BinNodeCount*4+BinLinkCount*4, 'float')
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkStatus
-                fread(fid1, BinLinkCount*3, 'float');
-            elseif indParam==20
-                fread(fid1, BinNodeCount*4+BinLinkCount*5, 'float');
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkSetting
-                fread(fid1, BinLinkCount*2, 'float');
-            elseif indParam==21
-                fread(fid1, BinNodeCount*4+BinLinkCount*6, 'float')
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkReactionRate
-                fread(fid1, BinLinkCount, 'float');
-            elseif indParam==22
-                fread(fid1, BinNodeCount*4+BinLinkCount*7, 'float');
-                value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkFrictionFactor
-            elseif indParam>22
+            switch indParam
+                case 11
+                    value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodeDemand
+                    fread(fid1, BinNodeCount*3, 'float');
+                    fread(fid1, BinLinkCount*8, 'float');
+                case 12
+                    fread(fid1, BinNodeCount, 'float');
+                    value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodeHead
+                    fread(fid1, BinNodeCount*2, 'float');
+                    fread(fid1, BinLinkCount*8, 'float');
+                case 13
+                    fread(fid1, BinNodeCount*2, 'float');
+                    value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodePressure
+                    fread(fid1, BinNodeCount, 'float');
+                    fread(fid1, BinLinkCount*8, 'float');
+                case 14
+                    fread(fid1, BinNodeCount*3, 'float');
+                    value(i,:) = fread(fid1, BinNodeCount, 'float')'; % nodeQuality
+                    fread(fid1, BinLinkCount*8, 'float');
+                case 15
+                    fread(fid1, BinNodeCount*4, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkFlow
+                    fread(fid1, BinLinkCount*7, 'float');
+                case 16
+                    fread(fid1, BinNodeCount*4+BinLinkCount, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkVelocity
+                    fread(fid1, BinLinkCount*6, 'float');
+                case 17
+                    fread(fid1, BinNodeCount*4+BinLinkCount*2, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkHeadloss
+                    fread(fid1, BinLinkCount*5, 'float');
+                case 18
+                    fread(fid1, BinNodeCount*4+BinLinkCount*3, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkQuality
+                    fread(fid1, BinLinkCount*4, 'float');
+                case 19
+                    fread(fid1, BinNodeCount*4+BinLinkCount*4, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkStatus
+                    fread(fid1, BinLinkCount*3, 'float');
+                case 20
+                    fread(fid1, BinNodeCount*4+BinLinkCount*5, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkSetting
+                    fread(fid1, BinLinkCount*2, 'float');
+                case 21
+                    fread(fid1, BinNodeCount*4+BinLinkCount*6, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkReactionRate
+                    fread(fid1, BinLinkCount, 'float');
+                case 22
+                    fread(fid1, BinNodeCount*4+BinLinkCount*7, 'float');
+                    value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkFrictionFactor
+            end
+            if indParam>22
                 fread(fid1, BinNodeCount*4+BinLinkCount*8, 'float');
             end
         end
-        if indParam==23
-            value =fread(fid1, 1, 'float')'; % AverageBulkReactionRate
-        elseif indParam==24
-            fread(fid1, 1, 'float');
-            value =fread(fid1, 1, 'float')'; % AverageWallReactionRate
-        elseif indParam==25
-            fread(fid1, 2, 'float');
-            value =fread(fid1, 1, 'float')'; % AverageTankReactionRate
-        elseif indParam==26
-            fread(fid1, 3, 'float');
-            value =fread(fid1, 1, 'float')'; % AverageSourceInflowRate
+        switch indParam
+            case 19 %linkstatus
+                value(find(value==2))=0;
+                value(find(value>2))=1;
+            case 23
+                value =fread(fid1, 1, 'float')'; % AverageBulkReactionRate
+            case 24
+                fread(fid1, 1, 'float');
+                value =fread(fid1, 1, 'float')'; % AverageWallReactionRate
+            case 25
+                fread(fid1, 2, 'float');
+                value =fread(fid1, 1, 'float')'; % AverageTankReactionRate
+            case 26
+                fread(fid1, 3, 'float');
+                value =fread(fid1, 1, 'float')'; % AverageSourceInflowRate
         end
-        fclose(fid1);
+    else
+        fid1=fid;
     end
-%     if fid==-1
-%         fprintf('"Run was unsuccessful."\n');
-%     else
-%         fprintf('"Run was successful."\n');
-%     end
+    fclose(fid1);
+    ps = recycle('off'); delete(binfile); recycle(ps);
 end
 function Errcode=addLinkWarnings(obj,typecode,newLink,toNode)
 % Check if id new already exists
@@ -11387,5 +11408,63 @@ function [value, cont, sect, i,t,q,d] = getLV(tok,value,sect,tline,i,t,q,d)
         end
         value.countReactionlines=d;
         d=d+1;
+    end
+end
+function [status,result] = runMSXexe(obj, rptfile, varargin)
+    inpfile=obj.BinTempfile;
+    if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
+        [~,lpwd]=system(['cmd /c for %A in ("',obj.MSXLibEPANETPath,'") do @echo %~sA']);
+        libPwd=regexp(lpwd,'\s','split');
+        if nargin<3
+            r = sprintf('%s\\epanetmsx.exe %s %s %s',libPwd{1},inpfile,obj.MSXTempFile,rptfile);
+        else
+            binfile=varargin{1};
+            r = sprintf('%s\\epanetmsx.exe %s %s %s %s',libPwd{1},inpfile,obj.MSXTempFile,rptfile,binfile);
+        end
+    end
+    [status,result] = system(r);
+end
+function value = readMSXBinaryFile(binfile)
+    fid = fopen(binfile, 'r');
+    if fid~=-1
+        data = fread(fid,'int32');
+        fclose(fid);
+        value.BinMSXNumberReportingPeriods = data(end-2);
+        clear data;
+        fid1 = fopen(binfile, 'r');
+
+        % Seek to the 10th byte ('J'), read 5
+        fseek(fid1, 0, 'bof');
+        value.BinMSXmagicnumber=fread(fid1, 1, 'uint32');
+        value.BinMSXLibMSX=fread(fid1, 1, 'uint32');
+        value.BinMSXNumberNodes=fread(fid1, 1, 'uint32');
+        value.BinMSXNumberLinks=fread(fid1, 1, 'uint32');
+        value.BinMSXSpeciesCount=fread(fid1, 1, 'uint32');
+        value.BinMSXReportingTimeStepSec=fread(fid1, 1, 'uint32');
+
+        for i=1:value.BinMSXSpeciesCount
+            value.BinMSXSpeciesNumberChar(i)=fread(fid1, 1, 'uint32');
+            value.BinMSXSpeciesNameID{i}=fread(fid1, value.BinMSXSpeciesNumberChar(i), '*char')';
+        end  
+        for i=1:value.BinMSXSpeciesCount
+            value.BinMSXSpeciesUnits{i}=fread(fid1, 15, '*char')';
+        end
+        value.BinMSXSpeciesUnits = regexprep(value.BinMSXSpeciesUnits,'[^\w'']','');
+
+        fread(fid1, 32, 'float');
+        for i=1:value.BinMSXReportingTimeStepSec/3600:value.BinMSXNumberReportingPeriods
+            for s=1:value.BinMSXSpeciesCount
+                for u=1:value.BinMSXNumberNodes
+                    value.BinMSXNodesQuality{s}(i,u) = fread(fid1, 1, 'float')'; %%%% edit here
+                end
+            end
+        end
+        for i=1:value.BinMSXReportingTimeStepSec/3600:value.BinMSXNumberReportingPeriods
+            for s=1:value.BinMSXSpeciesCount
+                for u=1:value.BinMSXNumberLinks
+                    value.BinMSXLinksQuality{s}(i,:) = fread(fid1, 1, 'float')';
+                end
+            end
+        end        
     end
 end
