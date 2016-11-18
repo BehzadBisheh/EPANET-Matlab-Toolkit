@@ -10936,6 +10936,15 @@ function value = getBinComputedTimeSeries(obj,indParam,varargin)
                     value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkQuality
                     fread(fid1, BinLinkCount*4, 'float');
                 case 19
+                    % Status Code for Each Link
+                    % 0 = closed (max. head exceeded)
+                    % 1 = temporarily closed
+                    % 2 = closed
+                    % 3 = open
+                    % 4 = active (partially open)
+                    % 5 = open (max. flow exceeded)
+                    % 6 = open (flow setting not met)
+                    % 7 = open (pressure setting not met)
                     fread(fid1, BinNodeCount*4+BinLinkCount*4, 'float');
                     value(i,:) = fread(fid1, BinLinkCount, 'float')'; % linkStatus
                     fread(fid1, BinLinkCount*3, 'float');
@@ -10956,9 +10965,6 @@ function value = getBinComputedTimeSeries(obj,indParam,varargin)
             end
         end
         switch indParam
-            case 19 %linkstatus
-                value(find(value==2))=0;
-                value(find(value>2))=1;
             case 23
                 value =fread(fid1, 1, 'float')'; % AverageBulkReactionRate
             case 24
