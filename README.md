@@ -83,6 +83,7 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |getLinkPumpPatternNameID|Retrieves the pump pattern IDs|
 |getLinkPumpType|Retrieves the type of a pump for specific link index|
 |getLinkPumpTypeCode|Retrieves the type code of a pump for specific link index|
+|getLinkPumpSwitches|Calculates the number of pump switches|
 |getLinkQuality|Retrieves the quality of links|
 |getLinkRoughnessCoeff|Retrieves the value of all link roughness|
 |getLinkSettings|Retrieves the value of all computed link roughness for pipes or actual speed for pumps or actual setting for valves|

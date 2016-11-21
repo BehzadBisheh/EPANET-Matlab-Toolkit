@@ -817,10 +817,13 @@ classdef epanet <handle
             value = find(strcmp(tmpLinkTypes,'PIPE'));
 %             if isempty(value), value=-1; end
         end
-        function value = getLinkPumpIndex(obj)
+        function value = getLinkPumpIndex(obj, varargin)
             %Retrieves the pump indices
             tmpLinkTypes=obj.getLinkType;
             value = find(strcmp(tmpLinkTypes,'PUMP'));
+            if ~isempty(varargin)
+                value = value(varargin{1});
+            end
 %             if isempty(value), value=-1; end
         end
         function value = getLinkValveIndex(obj)
@@ -1834,6 +1837,14 @@ classdef epanet <handle
         function value = getVersion(obj)
             % Retrieve the current EPANET LibEPANET
             [obj.Errcode, value] = ENgetversion(obj.LibEPANET);
+        end
+        function value = getLinkPumpSwitches(obj)
+            value=[];
+            s = obj.getComputedHydraulicTimeSeries('status');
+            for i=1:obj.getLinkPumpCount
+                index = find(diff(s.Status(:,obj.getLinkPumpIndex(i))));
+                value(i) = length(index);
+            end
         end
         function value = getComputedHydraulicTimeSeries(obj,varargin)
             % Compute hydraulic simulation and retrieve all time-series
