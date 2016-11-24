@@ -405,20 +405,12 @@ classdef epanet <handle
             % DLLs
             pwdepanet = fileparts(which('epanet.m'));
             if strcmp(computer('arch'),'win64')% if no DLL is given, select one automatically
-                %if exist('64bit')==7 % name is a folder.
                 obj.LibEPANETpath = [pwdepanet,'\64bit\'];
-                %else
-                %    warning('Folder "64bit" does not exit.');return;
-                %end
             elseif strcmp(computer('arch'),'win32')
-                %if exist('32bit')==7
                 obj.LibEPANETpath = [pwdepanet,'\32bit\'];
-                %else
-                %    warning('Folder "32bit" does not exit.');return;
-                %end
             end
-            warning on;   
             obj.InputFile=which(varargin{1}); % Get name of INP file
+            warning('off', 'MATLAB:loadlibrary:TypeNotFound'); %Warning: The data type 'FcnPtr' used by function ENepanet does not exist. 
             % Bin functions
             if nargin==2
                 if strcmp(upper(varargin{2}),'BIN')
@@ -441,15 +433,11 @@ classdef epanet <handle
                 end
                 [pwdDLL,obj.LibEPANET] = fileparts(varargin{2}); % Get DLL LibEPANET (e.g. epanet20012x86 for 32-bit)
                 obj.LibEPANETpath = [pwdDLL,'/'];
-                warning off;
                 try  loadlibrary([obj.LibEPANETpath,obj.LibEPANET],[obj.LibEPANETpath,obj.LibEPANET,'.h']); 
                 catch e
-                   warning on; 
                    obj.Errcode=-1;
                    warning(['File "', obj.LibEPANET, '" is not a valid win application.']);return;
                 end
-                warning on;
-                
             elseif nargin==1
                 obj.LibEPANET = 'epanet2';
                 [~,inp]=fileparts(obj.InputFile);
@@ -458,13 +446,12 @@ classdef epanet <handle
                 end
             end
             if ~exist(obj.InputFile,'file')
-                warning(['File "', obj.InputFile, '" does not exist in folder.']);return;
+                warning(['File "', varargin{1}, '" does not exist in folder. (e.g. addpath(genpath(pwd));)']);return;
             end
             if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
                 %Load EPANET Library
-                warning off;
                 ENLoadLibrary(obj.LibEPANETpath,obj.LibEPANET);
-                warning on;
+                warning('on', 'MATLAB:loadlibrary:TypeNotFound'); 
                 %Open the file
                 obj.Errcode=ENopen(obj.InputFile,'','',obj.LibEPANET);
                 if obj.Errcode~=0
@@ -2009,6 +1996,19 @@ classdef epanet <handle
                 end
             end
             obj.closeQualityAnalysis;
+        end
+        function value = getComputedTimeSeries(obj)
+            obj.saveInputFile(obj.BinTempfile);
+            [inpfile, rptfile, binfile]= createTempfiles(obj.BinTempfile);
+            obj.Errcode = obj.loadEPANETFile(obj.BinTempfile);
+            disp(obj.getError(obj.Errcode));
+            obj.Errcode=calllib(obj.LibEPANET, 'ENepanet', inpfile, rptfile, binfile, lib.pointer);
+            disp(obj.getError(obj.Errcode));
+            fid = fopen(binfile,'r');            
+            value = readEpanetBin(fid, binfile);
+            delete(rptfile);
+            obj.Errcode = obj.loadEPANETFile(obj.BinTempfile);
+            disp(obj.getError(obj.Errcode));
         end
         function solveCompleteHydraulics(obj)
             [obj.Errcode] = ENsolveH(obj.LibEPANET);
@@ -5826,93 +5826,8 @@ classdef epanet <handle
             value = getBinComputedTimeSeries(obj,26);
         end
         function value = getBinComputedAllParameters(obj, varargin)
-            value=[];
             [fid,binfile] = runEPANETexe(obj);
-            if fid~=-1
-                data = fread(fid,'int32');
-                fclose(fid);
-                value.BinNumberReportingPeriods = data(end-2);
-                clear data;
-                fid1 = fopen(binfile, 'r');
-
-                % Seek to the 10th byte ('J'), read 5
-                fseek(fid1, 0, 'bof');
-                value.Binmagicnumber=fread(fid1, 1, 'uint32');
-                value.BinLibEPANET=fread(fid1, 1, 'uint32');
-                value.BinNumberNodes=fread(fid1, 1, 'uint32');
-                value.BinNumberReservoirsTanks=fread(fid1, 1, 'uint32');
-                value.BinNumberLinks=fread(fid1, 1, 'uint32');
-                value.BinNumberPumps=fread(fid1, 1, 'uint32');
-                value.BinNumberValves=fread(fid1, 1, 'uint32');
-                value.BinWaterQualityOption=fread(fid1, 1, 'uint32');
-                value.BinIndexNodeSourceTracing=fread(fid1, 1, 'uint32');
-                value.BinFlowUnitsOption=fread(fid1, 1, 'uint32');
-                value.BinPressureUnitsOption=fread(fid1, 1, 'uint32');
-                value.BinTimeStatisticsFlag=fread(fid1, 1, 'uint32');
-                value.BinReportingStartTimeSec=fread(fid1, 1, 'uint32');
-                value.BinReportingTimeStepSec=fread(fid1, 1, 'uint32');
-                value.BinSimulationDurationSec=fread(fid1, 1, 'uint32');
-                value.BinProblemTitle1=fread(fid1, 80, '*char')';
-                value.BinProblemTitle2=fread(fid1, 80, '*char')';
-                value.BinProblemTitle3=fread(fid1, 80, '*char')';
-                value.BinNameInputFile=fread(fid1, 260, '*char')';
-                value.BinNameReportFile=fread(fid1, 260, '*char')';
-                value.BinNameChemical=fread(fid1, 16, '*char')';
-                value.BinChemicalConcentrationUnits=fread(fid1, 32, '*char')'; 
-                fread(fid1, 4, 'uint32');
-                for i=1:value.BinNumberNodes
-                    value.BinIDLabelEachNode{i}=fread(fid1, 32, '*char')'; % error NODES*32
-                    value.BinIDLabelEachNode{i}=value.BinIDLabelEachNode{i}(find(value.BinIDLabelEachNode{i}));
-                end
-                for i=1:value.BinNumberLinks
-                    value.BinIDLabelEachLink{i}=fread(fid1, 32, '*char')';  % error LINKS*32
-                    value.BinIDLabelEachLink{i}=value.BinIDLabelEachLink{i}(find(value.BinIDLabelEachLink{i}));
-                end
-                value.BinIndexStartNodeEachLink=fread(fid1, value.BinNumberLinks, 'uint32')';
-                value.BinIndexEndNodeEachLink=fread(fid1, value.BinNumberLinks, 'uint32')';
-                value.BinTypeCodeEachLink=fread(fid1, value.BinNumberLinks, 'uint32')';
-                value.BinNodeIndexEachReservoirsTank=fread(fid1, value.BinNumberReservoirsTanks, 'uint32')'; % error
-                value.BinCrossSectionalAreaEachTank=fread(fid1, value.BinNumberReservoirsTanks, 'float')';
-                value.BinElevationEachNode=fread(fid1, value.BinNumberNodes, 'float')';
-                value.BinLengthEachLink=fread(fid1, value.BinNumberLinks, 'float')';
-                value.BinDiameterEachLink=fread(fid1, value.BinNumberLinks, 'float')';
-
-                value.BinPumpIndexListLinks=fread(fid1, value.BinNumberPumps, 'float')';
-                value.BinPumpUtilization=fread(fid1, value.BinNumberPumps, 'float')';
-                value.BinAverageEfficiency=fread(fid1, value.BinNumberPumps, 'float')';
-                value.BinAverageKwattsOrMillionGallons=fread(fid1, value.BinNumberPumps, 'float')';
-                value.BinAverageKwatts=fread(fid1, value.BinNumberPumps, 'float')';
-                value.BinPeakKwatts=fread(fid1, value.BinNumberPumps, 'float')';
-                value.BinAverageCostPerDay=fread(fid1, value.BinNumberPumps, 'float')';
-
-                fread(fid1, 1, 'float');
-                
-                for i=1:value.BinNumberReportingPeriods
-                    value.BinnodeDemand(i,:)         = fread(fid1, value.BinNumberNodes, 'float')';
-                    value.BinnodeHead(i,:)           = fread(fid1, value.BinNumberNodes, 'float')';
-                    value.BinnodePressure(i,:)       = fread(fid1, value.BinNumberNodes, 'float')';
-                    value.BinnodeQuality(i,:)        = fread(fid1, value.BinNumberNodes, 'float')';
-                    value.BinlinkFlow(i,:)           = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkVelocity(i,:)       = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkHeadloss(i,:)       = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkQuality(i,:)        = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkStatus(i,:)         = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkSetting(i,:)        = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkReactionRate(i,:)   = fread(fid1, value.BinNumberLinks, 'float')';
-                    value.BinlinkFrictionFactor(i,:) = fread(fid1, value.BinNumberLinks, 'float')';
-                end
-                value.BinAverageBulkReactionRate=fread(fid1, 1, 'float')';
-                value.BinAverageWallReactionRate=fread(fid1, 1, 'float')';
-                value.BinAverageTankReactionRate=fread(fid1, 1, 'float')';
-                value.BinAverageSourceInflowRate=fread(fid1, 1, 'float')';
-                value.BinNumberReportingPeriods2=fread(fid1, 1, 'uint32')';
-                value.BinWarningFlag=fread(fid1, 1, 'uint32')';
-                value.BinMagicNumber=fread(fid1, 1, 'uint32')';
-            else
-                fid1=fid;
-            end
-            fclose(fid1);
-            ps = recycle('off'); delete(binfile); recycle(ps);
+            value = readEpanetBin(fid, binfile);
         end
         function [info,tline,allines] = readInpFile(obj,varargin)
             if ~sum(strcmp(who,'varargin'))
@@ -9894,22 +9809,19 @@ for t = Index:length(info)
                         fprintf(fid2, controls(i,:));
                         fprintf(fid2,'\r\n');
                     end
-                    goOut=1;
-                else
-                    fprintf(fid2, '%s',syntax);
-                end
-                fprintf(fid2,'\r\n');
-                fprintf(fid2,'\r\n');
-                fprintf(fid2,'%s',a{u});
-                fprintf(fid2,'\r\n');
-                if goOut
                     for i=t:length(info)
                         fprintf(fid2,'%s',info{i});
                         fprintf(fid2,'\n');
-                    end
-                    break;
+                    end                    
+                    goOut=1;
                 end
-                noo=1;
+                if ~goOut
+                    fprintf(fid2, '%s',syntax);
+                    fprintf(fid2,'\r\n');
+                    fprintf(fid2,c);
+                    noo=1;
+                end
+                break;
             elseif isempty(a{u}) && noo==0
             else
                 if isempty(a{u}) && noo==1
@@ -10831,14 +10743,8 @@ elseif strcmp(previousFlowUnits,'CMD')
     end
 end
 end
-function [fid,binfile,rptfile] = runEPANETexe(obj)
-    [tmppath,tempfile]=fileparts(obj.BinTempfile);
-    [~,mm]=system(['cmd /c for %A in ("',tmppath,'") do @echo %~sA']);
-    mmPwd=regexp(mm,'\s','split');
-    inpfile=[mmPwd{1},'/',tempfile,'.inp'];
-    uuID = char(java.util.UUID.randomUUID);
-    rptfile=['@#',uuID,'.txt'];
-    binfile=['@#',uuID,'.bin'];%[inpfile(1:length(inpfile)-4),'.bin'];
+function [fid,binfile] = runEPANETexe(obj)
+    [inpfile, rptfile, binfile]= createTempfiles(obj.BinTempfile);
     if strcmp(computer('arch'),'win64') || strcmp(computer('arch'),'win32')
         [~,lpwd]=system(['cmd /c for %A in ("',obj.LibEPANETpath,'") do @echo %~sA']);
         libPwd=regexp(lpwd,'\s','split');
@@ -10847,7 +10753,7 @@ function [fid,binfile,rptfile] = runEPANETexe(obj)
     if obj.getCMDCODE, [~,~]=system(r); else system(r);
     end
     if exist(rptfile)==2 
-        fclose('all'); ps = recycle('off'); delete(rptfile); recycle(ps);
+        delete(rptfile);
     end
     fid = fopen(binfile,'r');
 end
@@ -10992,7 +10898,7 @@ function value = getBinComputedTimeSeries(obj,indParam,varargin)
         fid1=fid;
     end
     fclose(fid1);
-    ps = recycle('off'); delete(binfile); recycle(ps);
+warning('off', 'MATLAB:DELETE:Permission');   delete(binfile);  warning('on', 'MATLAB:DELETE:Permission');
 end
 function Errcode=addLinkWarnings(obj,typecode,newLink,toNode)
 % Check if id new already exists
@@ -11484,4 +11390,98 @@ function value = readMSXBinaryFile(binfile)
             end
         end        
     end
+end
+function value = readEpanetBin(fid, binfile)
+    value=[];fid1=-1;
+    if fid~=-1
+        data = fread(fid,'int32');
+        fclose(fid);
+        value.BinNumberReportingPeriods = data(end-2);
+        clear data;
+        fid1 = fopen(binfile, 'r');
+        % Seek to the 10th byte ('J'), read 5
+        fseek(fid1, 0, 'bof');
+        value.Binmagicnumber=fread(fid1, 1, 'uint32');
+        value.BinLibEPANET=fread(fid1, 1, 'uint32');
+        value.BinNumberNodes=fread(fid1, 1, 'uint32');
+        value.BinNumberReservoirsTanks=fread(fid1, 1, 'uint32');
+        value.BinNumberLinks=fread(fid1, 1, 'uint32');
+        value.BinNumberPumps=fread(fid1, 1, 'uint32');
+        value.BinNumberValves=fread(fid1, 1, 'uint32');
+        value.BinWaterQualityOption=fread(fid1, 1, 'uint32');
+        value.BinIndexNodeSourceTracing=fread(fid1, 1, 'uint32');
+        value.BinFlowUnitsOption=fread(fid1, 1, 'uint32');
+        value.BinPressureUnitsOption=fread(fid1, 1, 'uint32');
+        value.BinTimeStatisticsFlag=fread(fid1, 1, 'uint32');
+        value.BinReportingStartTimeSec=fread(fid1, 1, 'uint32');
+        value.BinReportingTimeStepSec=fread(fid1, 1, 'uint32');
+        value.BinSimulationDurationSec=fread(fid1, 1, 'uint32');
+        value.BinProblemTitle1=fread(fid1, 80, '*char')';
+        value.BinProblemTitle2=fread(fid1, 80, '*char')';
+        value.BinProblemTitle3=fread(fid1, 80, '*char')';
+        value.BinNameInputFile=fread(fid1, 260, '*char')';
+        value.BinNameReportFile=fread(fid1, 260, '*char')';
+        value.BinNameChemical=regexprep(fread(fid1, 16, '*char')','[^\w'']','');
+        value.BinChemicalConcentrationUnits=regexprep(fread(fid1, 32, '*char')','[^\w'']',''); 
+        fread(fid1, 4, 'uint32');
+        for i=1:value.BinNumberNodes
+            value.BinIDLabelEachNode{i}=fread(fid1, 32, '*char')'; % error NODES*32
+            value.BinIDLabelEachNode{i}=value.BinIDLabelEachNode{i}(find(value.BinIDLabelEachNode{i}));
+        end
+        for i=1:value.BinNumberLinks
+            value.BinIDLabelEachLink{i}=fread(fid1, 32, '*char')';  % error LINKS*32
+            value.BinIDLabelEachLink{i}=value.BinIDLabelEachLink{i}(find(value.BinIDLabelEachLink{i}));
+        end
+        value.BinIndexStartNodeEachLink=fread(fid1, value.BinNumberLinks, 'uint32')';
+        value.BinIndexEndNodeEachLink=fread(fid1, value.BinNumberLinks, 'uint32')';
+        value.BinTypeCodeEachLink=fread(fid1, value.BinNumberLinks, 'uint32')';
+        value.BinNodeIndexEachReservoirsTank=fread(fid1, value.BinNumberReservoirsTanks, 'uint32')'; % error
+        value.BinCrossSectionalAreaEachTank=fread(fid1, value.BinNumberReservoirsTanks, 'float')';
+        value.BinElevationEachNode=fread(fid1, value.BinNumberNodes, 'float')';
+        value.BinLengthEachLink=fread(fid1, value.BinNumberLinks, 'float')';
+        value.BinDiameterEachLink=fread(fid1, value.BinNumberLinks, 'float')';
+
+        value.BinPumpIndexListLinks=fread(fid1, value.BinNumberPumps, 'float')';
+        value.BinPumpUtilization=fread(fid1, value.BinNumberPumps, 'float')';
+        value.BinAverageEfficiency=fread(fid1, value.BinNumberPumps, 'float')';
+        value.BinAverageKwattsOrMillionGallons=fread(fid1, value.BinNumberPumps, 'float')';
+        value.BinAverageKwatts=fread(fid1, value.BinNumberPumps, 'float')';
+        value.BinPeakKwatts=fread(fid1, value.BinNumberPumps, 'float')';
+        value.BinAverageCostPerDay=fread(fid1, value.BinNumberPumps, 'float')';
+
+        fread(fid1, 1, 'float');
+
+        for i=1:value.BinNumberReportingPeriods
+            value.BinnodeDemand(i,:)         = fread(fid1, value.BinNumberNodes, 'float')';
+            value.BinnodeHead(i,:)           = fread(fid1, value.BinNumberNodes, 'float')';
+            value.BinnodePressure(i,:)       = fread(fid1, value.BinNumberNodes, 'float')';
+            value.BinnodeQuality(i,:)        = fread(fid1, value.BinNumberNodes, 'float')';
+            value.BinlinkFlow(i,:)           = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkVelocity(i,:)       = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkHeadloss(i,:)       = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkQuality(i,:)        = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkStatus(i,:)         = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkSetting(i,:)        = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkReactionRate(i,:)   = fread(fid1, value.BinNumberLinks, 'float')';
+            value.BinlinkFrictionFactor(i,:) = fread(fid1, value.BinNumberLinks, 'float')';
+        end
+        value.BinAverageBulkReactionRate=fread(fid1, 1, 'float')';
+        value.BinAverageWallReactionRate=fread(fid1, 1, 'float')';
+        value.BinAverageTankReactionRate=fread(fid1, 1, 'float')';
+        value.BinAverageSourceInflowRate=fread(fid1, 1, 'float')';
+        value.BinNumberReportingPeriods2=fread(fid1, 1, 'uint32')';
+        value.BinWarningFlag=fread(fid1, 1, 'uint32')';
+        value.BinMagicNumber=fread(fid1, 1, 'uint32')';
+    end
+    fclose(fid1);
+warning('off', 'MATLAB:DELETE:Permission');   delete(binfile);  warning('on', 'MATLAB:DELETE:Permission');
+end
+function [inpfile, rptfile, binfile]= createTempfiles(BinTempfile)
+    [tmppath,tempfile]=fileparts(BinTempfile);
+    [~,mm]=system(['cmd /c for %A in ("',tmppath,'") do @echo %~sA']);
+    mmPwd=regexp(mm,'\s','split');
+    inpfile=[mmPwd{1},'/',tempfile,'.inp'];
+    uuID = char(java.util.UUID.randomUUID);
+    rptfile=['@#',uuID,'.txt'];
+    binfile=['@#',uuID,'.bin'];
 end
