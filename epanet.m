@@ -1998,10 +1998,21 @@ classdef epanet <handle
             obj.closeQualityAnalysis;
         end
         function value = getComputedTimeSeries(obj)
+            cnt = obj.getNodeCount;
+            LinkNodesIndex = unique(obj.getLinkNodesIndex);
+            if (length(LinkNodesIndex)~=cnt)
+                lenLinkNodes = [LinkNodesIndex; zeros(cnt-length(LinkNodesIndex),1)];
+                value =[];
+                fIndex = setdiff(obj.getNodeIndex,lenLinkNodes);
+                for i=fIndex
+                    disp(['Input Error 233: Node ',obj.getNodeNameID{i},' is unconnected.']);  
+                end
+                return;
+            end
             obj.saveInputFile(obj.BinTempfile);
             [inpfile, rptfile, binfile]= createTempfiles(obj.BinTempfile);
             obj.Errcode = obj.loadEPANETFile(obj.BinTempfile);
-            disp(obj.getError(obj.Errcode));
+            disp(obj.getError(obj.Errcode)); 
             obj.Errcode=calllib(obj.LibEPANET, 'ENepanet', inpfile, rptfile, binfile, lib.pointer);
             disp(obj.getError(obj.Errcode));
             fid = fopen(binfile,'r');            
@@ -2026,6 +2037,11 @@ classdef epanet <handle
                 valueIndex = getPatternIndex(obj,varargin{1});
                 setPattern(obj,valueIndex,varargin{2});
             end
+        end
+        function valueIndex = addJunction(obj,varargin)
+            [obj.Errcode] = ENaddnode(varargin{1},0,obj.LibEPANET);
+            disp(obj.getError(obj.Errcode));
+            valueIndex = getNodeIndex(obj,varargin{1});
         end
         function setControl(obj,controlRuleIndex,controlTypeIndex,linkIndex,controlSettingValue,nodeIndex,controlLevel)
             % Example: d.setControl(1,1,13,1,11,150)
@@ -2477,7 +2493,7 @@ classdef epanet <handle
         function Errcode = saveInputFile(obj,inpname,varargin)
             if strcmp(inpname,obj.BinTempfile) && nargin<3 %&& ~isempty(varargin)
                 [addSectionCoordinates,addSectionRules] = obj.getBinCoordRuleSections;
-                [obj.Errcode] = ENsaveinpfile(inpname,obj.LibEPANET);
+                [Errcode] = ENsaveinpfile(inpname,obj.LibEPANET);
                 % Open epanet input file
                 [~,info] = obj.readInpFile;
                 endSectionIndex=find(~cellfun(@isempty,regexp(info,'END','match')));
@@ -6852,12 +6868,10 @@ function [Errcode, count] = ENgetcount(countcode,LibEPANET)
     end
 end
 function [errmsg, e] = ENgeterror(Errcode,LibEPANET)
+    e=0; errmsg='';
     if Errcode
-        errmsg = char(32*ones(1,79));
-        [e,errmsg] = calllib(LibEPANET,'ENgeterror',Errcode,errmsg,79);
-    else
-        e=0;
-        errmsg='';
+        [e,errmsg] = calllib(LibEPANET,'ENgeterror',Errcode,char(32*ones(1,79)),79);
+        if e, [e,errmsg] = calllib(LibEPANET,'ENgeterror',e,char(32*ones(1,79)),79); end
     end
 end
 function [Errcode,flowunitsindex] = ENgetflowunits(LibEPANET)
@@ -7276,6 +7290,13 @@ end
 function [Errcode,qualcode,chemname,chemunits,tracenode] = ENgetqualinfo(LibEPANET)
 chm=char(32*ones(1,31));
 [Errcode,qualcode,chemname,chemunits,tracenode]=calllib(LibEPANET,'ENgetqualinfo',0,chm,chm,0);
+if Errcode
+    ENgeterror(Errcode,LibEPANET);
+end
+end
+function [Errcode] = ENaddnode(nodeid, nodetype,LibEPANET)
+% dev-net-builder
+[Errcode]=calllib(LibEPANET,'ENaddnode',nodeid,nodetype);
 if Errcode
     ENgeterror(Errcode,LibEPANET);
 end
