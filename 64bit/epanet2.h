@@ -155,9 +155,8 @@ typedef enum {
   EN_TANK        = 2
 } EN_NodeType;
 
-
 typedef enum {
-  EN_CVPIPE       = 0,    /* Link types. */
+  EN_CVPIPE       = 0,   /* Link types. */
   EN_PIPE         = 1,   /* See LinkType in TYPES.H */
   EN_PUMP         = 2,
   EN_PRV          = 3,
@@ -167,7 +166,6 @@ typedef enum {
   EN_TCV          = 7,
   EN_GPV          = 8
 } EN_LinkType;
-
 
 typedef enum {
   EN_NONE        = 0,    /* Quality analysis types. */
@@ -182,6 +180,12 @@ typedef enum {
   EN_SETPOINT    = 2,
   EN_FLOWPACED   = 3
 } EN_SourceType;
+
+typedef enum {          /* Head loss formula:                  */
+  EN_HW          = 0,    /*   Hazen-Williams                    */
+  EN_DW          = 1,    /*   Darcy-Weisbach                    */
+  EN_CM          = 2     /*   Chezy-Manning                     */
+} EN_FormType;           /* See FormType in TYPES.H             */
 
 typedef enum {
   EN_CFS         = 0,    /* Flow units types.   */
@@ -269,6 +273,17 @@ extern "C" {
    */
   int  DLLEXPORT ENepanet(char *inpFile, char *rptFile, char *binOutFile, void (*callback) (char *));
   
+  
+  /**
+   @brief Initializes an EPANET session
+   @param rptFile pointer to name of report file (to be created)
+   @param binOutFile pointer to name of binary output file (to be created)
+   @param UnitsType flow units flag
+   @param HeadlossFormula headloss formula flag
+   @return error code
+   */
+  int  DLLEXPORT ENinit(char *rptFile, char *binOutFile, int UnitsType, int HeadlossFormula);
+  
   /**
    @brief Opens EPANET input file & reads in network data
    @param inpFile pointer to name of input file (must exist)
@@ -276,6 +291,7 @@ extern "C" {
    @param binOutFile pointer to name of binary output file (to be created)
    @return error code
    */
+
   int  DLLEXPORT ENopen(char *inpFile, char *rptFile, char *binOutFile);
   
   /**
@@ -636,7 +652,7 @@ extern "C" {
    @return Error code
    */
   int  DLLEXPORT ENgetdemandpattern(int nodeIndex, int demandIndex, int *pattIndex);
-
+  
   /**
    @brief Get the index of a Link with specified ID.
    @param id The string ID of a link.
@@ -662,7 +678,16 @@ extern "C" {
    @return Error code
    @see EN_LinkType
    */
-  int  DLLEXPORT ENgetlinktype(int index, int *code);
+  int  DLLEXPORT ENgetlinktype(int index, EN_LinkType *code);
+
+  /**
+   @brief Set the link type code for a specified link
+   @param id The id of a link
+   @param code The type code of the link.
+   @return Error code
+   @see EN_LinkType
+   */
+  int  DLLEXPORT ENsetlinktype(char *id, EN_LinkType type);
   
   /**
    @brief Get the indexes of a link's start- and end-nodes.
@@ -685,12 +710,13 @@ extern "C" {
   int  DLLEXPORT ENgetlinkvalue(int index, int code, EN_API_FLOAT_TYPE *value);
   
   /**
-   @brief Get a curve's properties.
+   @brief Get curve x/y data.
+   @details PLEASE NOTE: x/y data returned will be in EPANET's native units, not the units specified by the project. This is a known issue related to the library not keeping track of the curve type (head, efficiency, volume, ...)
    @param curveIndex The index of a curve (first curve is index 1).
    @param[out] id The curve's string ID. Client code must preallocate at least MAXID characters.
    @param[out] nValues The number of values in the curve's (x,y) list.
-   @param[out] xValues The curve's x-values. Must be freed by client.
-   @param[out] yValues The curve's y-values. Must be freed by client.
+   @param[out] xValues The curve's x-values. Pointer must be freed by client.
+   @param[out] yValues The curve's y-values. Pointer must be freed by client.
    @return Error code.
    */
   int  DLLEXPORT ENgetcurve(int curveIndex, char* id, int *nValues, EN_API_FLOAT_TYPE **xValues, EN_API_FLOAT_TYPE **yValues);
@@ -702,6 +728,14 @@ extern "C" {
    @return Error code.
    */
   int  DLLEXPORT ENgetheadcurveindex(int pumpIndex, int *curveIndex);
+  
+  /**
+   @brief Sets the curve id for a specified pump index.
+   @param pumpIndex The index of the pump
+   @param curveIndex The index of the curve used by the pump
+   @return Error code.
+   */
+  int  DLLEXPORT ENsetheadcurveindex(int pumpIndex, int curveIndex);
   
   /**
    @brief Get the type of pump
@@ -740,6 +774,7 @@ extern "C" {
    @see EN_NodeProperty
    */
   int  DLLEXPORT ENsetnodevalue(int index, int code, EN_API_FLOAT_TYPE v);
+
   
   /**
    @brief Set a proprty value for a link.
@@ -827,7 +862,6 @@ extern "C" {
    */
   int  DLLEXPORT ENgetqualinfo(int *qualcode, char *chemname, char *chemunits, int *tracenode);
   
-   
   /**
    @brief Sets the node's base demand for a category.
    @param nodeIndex The index of a node.
@@ -838,7 +872,7 @@ extern "C" {
    */
   int  DLLEXPORT ENsetbasedemand(int nodeIndex, int demandIdx, EN_API_FLOAT_TYPE baseDemand);
   
-  /**
+   /**
    @brief Sets the index of the demand pattern assigned to a node for a category index.
    @param nodeIndex The index of a node (first node is index 1).
    @param demandIndex The index of a category (first category is index 1).
@@ -1044,7 +1078,39 @@ extern "C" {
    */
   int  DLLEXPORT ENgetruleID(int indexRule, char* id);
 
-
+  /**
+   @brief Adds a new node
+   @param id The name of the node to be added.
+   @param nodeType The node type code
+   @return Error code.
+   */
+  int DLLEXPORT ENaddnode(char *id, EN_NodeType nodeType);
+  
+  /**
+   @brief Adds a new link
+   @param id The name of the link to be added.
+   @param linkType The link type code
+   @param fromNode The id of the from node
+   @param toNode The id of the to node
+   @return Error code.
+   */
+  int DLLEXPORT ENaddlink(char *id, EN_LinkType linkType, char *fromNode, char *toNode);
+  
+  /**
+   @brief Deletes a node
+   @param nodeIndex The node index
+   @return Error code.
+   */
+  int DLLEXPORT ENdeletenode(int nodeIndex);
+  
+  /**
+   @brief Deletes a link
+   @param linkIndex The link index
+   @return Error code.
+   */
+  int DLLEXPORT ENdeletelink(int linkIndex);
+  
+  
 #if defined(__cplusplus)
 }
 #endif
