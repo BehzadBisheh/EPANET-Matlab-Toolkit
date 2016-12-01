@@ -59,7 +59,6 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |getCurveXY|Retrieves (x,y) values of all curves|
 |getENfunctionsImpemented|Retrieves the epanet functions that have been developed|
 |getFlowUnits|Retrieves the units used to express all flow rates|
-|getHeadCurveIndex|Retrieves index of a head curve for specific link index|
 |getLibFunctions|Retrieves the functions of DLL|
 |getLinkBulkReactionCoeff|Retrieves the value of all link bulk reaction coefficients|
 |getLinkCount|Retrieves the number of links|
@@ -78,6 +77,7 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |getLinkPipeNameID|Retrieves the pipe IDs|
 |getLinkPumpCount|Retrieves the number of pumps|
 |getLinkPumpEnergy|Retrieves the value of all computed energy in kwatts|
+|getLinkPumpHeadCurveIndex|Retrieves index of a head curve for specific link index|
 |getLinkPumpIndex|Retrieves the indices of pumps|
 |getLinkPumpNameID|Retrieves the pump IDs|
 |getLinkPumpPatternIndex|Retrieves the pump pattern indices|
@@ -183,6 +183,20 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |getLinksInfo|Retrieves links info e.g. diameters, lengths, roughness coeff. , minor loss coeff. , initial status, initial settings, bulk reaction coeff. , wall reaction coeff. , nodes connecting link indices, type indices|
 |addCurve|Adds a new curve appended to the end of the existing curves|
 |addPattern|Adds a new time pattern to the network|
+|addNodeJunction|Adds a new junction|
+|addNodeReservoir|Adds a new reservoir|
+|addNodeTank|Adds a new tank|
+|addLinkPipeCV|Adds a new CV pipe|
+|addLinkPipe|Adds a new pipe|
+|addLinkPump|Adds a new pump|
+|addLinkValvePRV|Adds a new PRV valve|
+|addLinkValvePSV|Adds a new PSV valve|
+|addLinkValvePBV|Adds a new PBV valve|
+|addLinkValveFCV|Adds a new FCV valve|
+|addLinkValveTCV|Adds a new TCV valve|
+|addLinkValveGPV|Adds a new GPV valve|
+|deleteNode|Deletes a node|
+|deleteLink|Deletes a link|
 |closeHydraulicAnalysis|Closes the hydraulic analysis system, freeing all allocated memory|
 |closeNetwork|Closes down the Toolkit system|
 |closeQualityAnalysis|Closes the water quality analysis system, freeing all allocated memory|
@@ -203,6 +217,7 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |setCurveValue|Retrieves x,y point for a specific point number and curve|
 |setLinkBulkReactionCoeff|Sets the values of bulk reactions|
 |setLinkDiameter|Sets the values of diameters|
+|setLinkPumpHeadCurveIndex|Sets the curves index for pumps index|
 |setLinkInitialSetting|Sets the values of initial settings|
 |setLinkInitialStatus|Sets the values of initial status|
 |setLinkLength|Sets the values of lengths|
@@ -502,3 +517,13 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |ENgetdemandpattern|Retrieves the index of a demand pattern for a specific demand category of a node|
 |ENsetbasedemand|Sets the nodes base demand for a category|
 |ENgetaveragepatternvalue|Retrieves the average value of a pattern|
+
+# List of other new EPANET Functions Supported #
+
+|Function|Description|
+|--------|-----------|
+|ENaddnode|Adds a new node| 
+|ENaddlink|Adds a new link| 
+|ENdeletenode|Deletes a node| 
+|ENdeletelink|Deletes a link| 
+|ENsetheadcurveindex|Sets the curve index for a specified pump index|
