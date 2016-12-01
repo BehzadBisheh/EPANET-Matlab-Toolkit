@@ -164,6 +164,7 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |getQualityType|Retrieves the type of water quality analysis type|
 |getStatistic|Retrieves hydraulic simulation statistic|
 |getTimeHTime|Retrieves the number of htime|
+|getTimeQTime|Retrieves the number of qtime|
 |getTimeHaltFlag|Retrieves the number of  halt flag|
 |getTimeHydraulicStep|Retrieves the value of the hydraulic time step|
 |getTimeNextEvent|Retrieves the number of next event|
