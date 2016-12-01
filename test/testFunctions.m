@@ -42,7 +42,7 @@ end
 if nF==1
     d.getLinkPumpTypeCode   % returns type index of all pumps
     d.getLinkPumpType       % returns type name of all pumps: CONSTANT_HORSEPOWER, POWER_FUNCTION, CUSTOM
-    d.getHeadCurveIndex     % returns index of all pump head curve
+    d.getLinkPumpHeadCurveIndex % returns index of all pump head curve
     d.getCurveNameID        % returns all curve IDs
     d.getCurveNameID(1)     % returns specific curve ID
     d.addCurve('NewCur1')   % add new curve with ID
