@@ -1357,7 +1357,7 @@ classdef epanet <handle
             %Retrieves the tank mixing zone volume
             indices = getNodeIndices(obj,varargin);j=1;
             for i=indices
-                [obj.Errcode, value(j)] = ENgetnodevalue(i,16,obj.LibEPANET); 
+                [obj.Errcode, value(j)] = ENgetnodevalue(i,obj.ToolkitConstants.EN_MIXZONEVOL,obj.LibEPANET); 
                 if obj.Errcode, error(obj.getError(obj.Errcode)), return; end   
                 j=j+1;
             end
@@ -2519,11 +2519,21 @@ classdef epanet <handle
         function useHydraulicFile(obj,hydname)
             [obj.Errcode]=ENusehydfile(hydname,obj.LibEPANET);
         end
-        function initializeHydraulicAnalysis(obj)
-            [obj.Errcode] = ENinitH(1,obj.LibEPANET);
+        function initializeHydraulicAnalysis(obj,varargin)
+            code=obj.ToolkitConstants.EN_SAVE;
+            if ~isempty(varargin)
+                code=varargin{1};
+            end
+            [obj.Errcode] = ENinitH(code,obj.LibEPANET);
         end
-        function initializeQualityAnalysis(obj)
-            [obj.Errcode] = ENinitQ(1,obj.LibEPANET);
+        function initializeQualityAnalysis(obj,varargin)
+            code=obj.ToolkitConstants.EN_SAVE;
+            if ~isempty(varargin)
+% obj.ToolkitConstants.EN_SAVE_AND_INIT; obj.ToolkitConstants.EN_NOSAVE;
+% obj.ToolkitConstants.EN_INITFLOW;
+                code=varargin{1};
+            end
+            [obj.Errcode] = ENinitQ(code,obj.LibEPANET);
         end
         function tstep = nextHydraulicAnalysisStep(obj)
             [obj.Errcode, tstep] = ENnextH(obj.LibEPANET);
