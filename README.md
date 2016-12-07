@@ -435,6 +435,7 @@ The `EPANET-Matlab Toolkit` is based/inspired on the [EPANET-Matlab Toolkit](htt
 |getBinTimesInfo|Retrieves the times info|
 |getBinPatternIndex|Retrieves the indices of all patterns|
 |getBinSimulationDuration|Retrieves the value of simulation duration|
+|getBinSections|Retrieves some basic sections from inp file|
 |getBinUnits|Retrieves the units used to express all flow rates|
 |setBinFlowUnitsAFD|Sets flow units to AFD|
 |setBinFlowUnitsCFS|Sets flow units to CFS|
